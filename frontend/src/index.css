@@ -7,17 +7,50 @@ body {
   color: #e2e8f0;
 }
 
-.container { max-width: 720px; margin: 0 auto; padding: 48px 20px; }
+a { color: #38bdf8; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { background: #0f172a; padding: 2px 6px; border-radius: 4px; }
 
+/* ---------- Layout ---------- */
+.layout { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: #111c33;
+  border-right: 1px solid #334155;
+  padding: 24px 12px;
+}
+.brand { color: #38bdf8; font-weight: 700; letter-spacing: 4px; padding: 0 12px 24px; }
+.nav-link {
+  display: block;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  color: #94a3b8;
+}
+.nav-link:hover { background: #1e293b; text-decoration: none; }
+.nav-link.active { background: #1e293b; color: #38bdf8; font-weight: 600; }
+
+.content { flex: 1; padding: 32px; overflow-x: auto; }
+.container { max-width: 960px; margin: 0 auto; }
+
+/* ---------- Typography ---------- */
 header h1 { margin: 0; letter-spacing: 4px; color: #38bdf8; }
 .subtitle { margin: 6px 0 32px; color: #94a3b8; }
+.page-title { margin: 12px 0 20px; }
+.muted { color: #94a3b8; }
+.small { font-size: 0.85rem; }
 
+/* ---------- Cards ---------- */
 .card {
   background: #1e293b;
   border: 1px solid #334155;
   border-radius: 12px;
   padding: 24px;
+  margin-bottom: 20px;
 }
+.card h3 { margin-top: 0; }
 
 .status { font-size: 1.25rem; font-weight: 600; margin: 0 0 20px; }
 .status.ok { color: #4ade80; }
@@ -28,7 +61,57 @@ header h1 { margin: 0; letter-spacing: 4px; color: #38bdf8; }
 .details li {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 10px 0;
   border-top: 1px solid #334155;
 }
+.details li:first-child { border-top: none; }
 .details span { color: #94a3b8; }
+
+/* ---------- Tables ---------- */
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #334155; }
+.table th { color: #94a3b8; font-weight: 500; font-size: 0.85rem; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ---------- Forms & buttons ---------- */
+.form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #e2e8f0;
+  padding: 8px 10px;
+}
+input[type='number'] { width: 70px; margin-left: 6px; }
+label { color: #94a3b8; font-size: 0.9rem; }
+
+.btn {
+  background: #0284c7;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.btn:hover { background: #0369a1; text-decoration: none; }
+.btn-small { padding: 5px 10px; font-size: 0.8rem; }
+.btn-danger { background: #b91c1c; }
+.btn-danger:hover { background: #991b1b; }
+
+.error-box {
+  background: #450a0a;
+  border: 1px solid #b91c1c;
+  color: #fecaca;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+/* ---------- Status badges ---------- */
+.badge { padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+.badge-healthy, .badge-recovered { background: #14532d; color: #4ade80; }
+.badge-warning { background: #713f12; color: #fbbf24; }
+.badge-unhealthy, .badge-failed { background: #7f1d1d; color: #f87171; }
+.badge-recovering, .badge-scaling { background: #1e3a8a; color: #93c5fd; }
+.badge-unknown { background: #334155; color: #cbd5e1; }

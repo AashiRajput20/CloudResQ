@@ -3,6 +3,7 @@ const cors = require('cors');
 const config = require('./config');
 const connectDB = require('./config/db');
 const healthRoutes = require('./routes/healthRoutes');
+const serviceRoutes = require('./routes/serviceRoutes');
 
 const app = express();
 
@@ -12,6 +13,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/health', healthRoutes);
+app.use('/api/services', serviceRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {
@@ -21,6 +23,13 @@ app.use((req, res) => {
 // Global error handler
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  if (err.name === 'ValidationError') {
+    const messages = Object.values(err.errors).map((e) => e.message);
+    return res.status(400).json({ error: messages.join('; ') });
+  }
+  if (err.code === 11000) {
+    return res.status(409).json({ error: 'A record with that name already exists' });
+  }
   console.error('[Error]', err);
   res.status(500).json({ error: 'Internal server error' });
 });
