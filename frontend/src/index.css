@@ -1,0 +1,34 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.container { max-width: 720px; margin: 0 auto; padding: 48px 20px; }
+
+header h1 { margin: 0; letter-spacing: 4px; color: #38bdf8; }
+.subtitle { margin: 6px 0 32px; color: #94a3b8; }
+
+.card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.status { font-size: 1.25rem; font-weight: 600; margin: 0 0 20px; }
+.status.ok { color: #4ade80; }
+.status.fail { color: #f87171; }
+.status.checking { color: #fbbf24; }
+
+.details { list-style: none; padding: 0; margin: 0; }
+.details li {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-top: 1px solid #334155;
+}
+.details span { color: #94a3b8; }
