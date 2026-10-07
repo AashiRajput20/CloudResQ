@@ -6,7 +6,7 @@ const state = {
   memoryHog: [], // holds allocated buffers so they are not garbage collected
 };
 
-const MAX_TOTAL_MEMORY_MB = 600; // safety cap for an 8 GB laptop
+const MAX_TOTAL_MEMORY_MB = 215; // safety cap for an 8 GB laptop
 
 function setFailMode(value) {
   state.failMode = value;

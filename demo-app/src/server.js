@@ -69,7 +69,7 @@ app.post('/simulate/cpu', (req, res) => {
 });
 
 app.post('/simulate/memory', (req, res) => {
-  const mb = Number(req.body?.mb) || 200;
+  const mb = Number(req.body?.mb) || 210;
   const allocated = simulation.startMemoryLoad(mb);
   res.json({ message: `${INSTANCE_ID}: allocated ${allocated} MB`, ...simulation.status() });
 });

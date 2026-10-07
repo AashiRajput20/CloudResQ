@@ -1,0 +1,71 @@
+# Shared settings for every demo-app instance
+x-demo-app: &demo-app
+  image: cloudresq-app
+  build: ./demo-app
+  restart: "no"          # CloudResQ decides recovery, not Docker
+  networks:
+    - cloudresq-net
+  mem_limit: 256m
+  cpus: 1.0
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: cloudresq-mongo
+    # Cap MongoDB's cache to save RAM on an 8 GB laptop
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - cloudresq-net
+    restart: unless-stopped
+
+  app-1:
+    <<: *demo-app
+    container_name: cloudresq-app-1
+    environment:
+      INSTANCE_ID: app-1
+      PORT: "3000"
+    ports:
+      - "3001:3000"
+    labels:
+      cloudresq.managed: "true"
+      cloudresq.service: "demo-service"
+      cloudresq.instance: "app-1"
+
+  app-2:
+    <<: *demo-app
+    container_name: cloudresq-app-2
+    environment:
+      INSTANCE_ID: app-2
+      PORT: "3000"
+    ports:
+      - "3002:3000"
+    labels:
+      cloudresq.managed: "true"
+      cloudresq.service: "demo-service"
+      cloudresq.instance: "app-2"
+
+  app-3:
+    <<: *demo-app
+    container_name: cloudresq-app-3
+    environment:
+      INSTANCE_ID: app-3
+      PORT: "3000"
+    ports:
+      - "3003:3000"
+    labels:
+      cloudresq.managed: "true"
+      cloudresq.service: "demo-service"
+      cloudresq.instance: "app-3"
+
+networks:
+  cloudresq-net:
+    name: cloudresq-net
+
+volumes:
+  mongo-data:
+    name: cloudresq-mongo-data
+    external: true   # reuse the volume from your earlier standalone Mongo container
