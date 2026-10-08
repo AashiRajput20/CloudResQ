@@ -5,6 +5,7 @@ import {
 } from '../services/api';
 import usePolling from '../hooks/usePolling';
 import StatusBadge from '../components/StatusBadge';
+import AnalysisPanel from '../components/AnalysisPanel';
 
 export default function ServiceDetails() {
   const { id } = useParams();
@@ -111,7 +112,7 @@ export default function ServiceDetails() {
           </table>
         )}
       </section>
-
+      <AnalysisPanel serviceId={id} />
       <section className="card">
         <h3>Health check history <span className="muted small">(last 15)</span></h3>
         {checks.length === 0 ? (

@@ -131,3 +131,7 @@ select {
   color: #e2e8f0;
   padding: 6px 10px;
 }
+.badge-none, .badge-no_action { background: #334155; color: #cbd5e1; }
+.badge-restart, .badge-scale_out, .badge-scale_in { background: #1e3a8a; color: #93c5fd; }
+.badge-replace { background: #7f1d1d; color: #fca5a5; }
+.badge-remove_from_traffic, .badge-alert { background: #713f12; color: #fbbf24; }

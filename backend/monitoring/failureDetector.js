@@ -14,6 +14,7 @@ const AVAILABILITY = ['CONTAINER_DOWN', 'HEALTH_CHECK_FAILED'];
 
 const windows = new Map();  // "instanceId:TYPE" -> SampleWindow
 const counters = new Map(); // instanceId -> last seen { requestCount, errorCount }
+const lastErrorRates = new Map(); // instanceId -> latest error-rate sample (read by the Analyzer)
 
 const round = (n) => Math.round(n * 10) / 10;
 const isFor = (f, inst) => String(f.instanceId) === String(inst._id);
@@ -161,7 +162,7 @@ async function checkResources(service, o, active) {
     }
 
     const value = rule.value(o);
-    if (value != null) win.add(value);
+    if (rule.type === 'HIGH_ERROR_RATE' && value != null) lastErrorRates.set(String(inst._id), value);    if (value != null) win.add(value);
     if (!win.ready) continue; // not enough data yet; keep any existing failure as it is
 
     const avg = win.average;
@@ -221,4 +222,7 @@ async function detect(service, observations) {
   );
 }
 
-module.exports = { detect };
+module.exports = {
+  detect,
+  getLastErrorRate: (instanceId) => lastErrorRates.get(String(instanceId)) ?? null,
+};

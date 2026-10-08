@@ -21,6 +21,7 @@ export const getMonitorStatus = async () => (await api.get('/monitor/status')).d
 
 // Pulls the readable message out of an axios error.
 export const getFailures = async (params = {}) => (await api.get('/failures', { params })).data;
+export const getAnalysis = async (params = {}) => (await api.get('/analysis', { params })).data;
 export const errorMessage = (err) => err.response?.data?.error || err.message;
 
 export default api;

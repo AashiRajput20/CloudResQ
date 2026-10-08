@@ -43,4 +43,10 @@ module.exports = {
     repeatedFailureCount: parseInt(process.env.REPEATED_FAILURE_COUNT, 10) || 3,
     repeatedFailureWindowMinutes: parseInt(process.env.REPEATED_FAILURE_WINDOW_MINUTES, 10) || 10,
   },
+    decision: {
+    maxRestartsBeforeReplacement: parseInt(process.env.MAX_RESTARTS_BEFORE_REPLACEMENT, 10) || 3,
+    cpuScaleInThreshold: parseFloat(process.env.CPU_SCALE_IN_THRESHOLD) || 20,
+    minimumReplicas: parseInt(process.env.MIN_REPLICAS, 10) || 2,
+    maximumReplicas: parseInt(process.env.MAX_REPLICAS, 10) || 5,
+  },
 };
