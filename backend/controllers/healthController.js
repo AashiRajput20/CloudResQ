@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const dockerManager = require('../docker/dockerManager');
+const healthMonitor = require('../monitoring/healthMonitor');
 
 const DB_STATES = {
   0: 'disconnected',
@@ -17,6 +18,7 @@ exports.getHealth = async (req, res) => {
     service: 'cloudresq-backend',
     mongodb: dbState,
     docker: dockerUp ? 'connected' : 'unreachable',
+    monitor: healthMonitor.getStatus().running ? 'running' : 'stopped',
     uptimeSeconds: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   });

@@ -34,9 +34,13 @@ export default function Dashboard() {
             <strong>{dbUp ? 'CONNECTED' : backendUp ? health.mongodb.toUpperCase() : 'UNKNOWN'}</strong>
           </li>
           <li>
-  <span>Docker Engine</span>
-  <strong>{backendUp ? (health.docker === 'connected' ? 'CONNECTED' : 'UNREACHABLE') : 'UNKNOWN'}</strong>
-</li>
+            <span>Docker Engine</span>
+            <strong>{backendUp ? (health.docker === 'connected' ? 'CONNECTED' : 'UNREACHABLE') : 'UNKNOWN'}</strong>
+          </li>
+           <li>
+            <span>Health Monitor</span>
+            <strong>{backendUp ? (health.monitor === 'running' ? 'RUNNING' : 'STOPPED') : 'UNKNOWN'}</strong>
+          </li>
           <li>
             <span>Backend uptime</span>
             <strong>{backendUp ? `${health.uptimeSeconds}s` : '-'}</strong>

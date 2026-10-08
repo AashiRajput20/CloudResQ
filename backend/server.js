@@ -5,7 +5,8 @@ const connectDB = require('./config/db');
 const healthRoutes = require('./routes/healthRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const dockerRoutes = require('./routes/dockerRoutes');
-const { syncFromDocker } = require('./services/instanceSyncService');
+const monitorRoutes = require('./routes/monitorRoutes');
+const healthMonitor = require('./monitoring/healthMonitor');
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use('/api/health', healthRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/docker', dockerRoutes);
+app.use('/api', monitorRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {
@@ -43,11 +45,9 @@ async function start() {
     console.log(`[CloudResQ] Backend running on http://localhost:${config.port}`);
   });
 
-  // Initial sync so the dashboard shows real instances right away.
-  // Not awaited and never fatal: the backend works even if Docker is down.
-  syncFromDocker()
-    .then((s) => console.log('[Sync] Docker -> MongoDB:', JSON.stringify(s)))
-    .catch((err) => console.warn(`[Sync] skipped: ${err.message}`));
+  // The monitor never crashes the backend: errors are caught inside its loop.
+  if (config.monitor.enabled) healthMonitor.start();
+  else console.log('[Monitor] disabled (MONITOR_ENABLED=false)');
 }
 
 start();

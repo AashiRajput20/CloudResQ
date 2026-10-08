@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Services from './pages/Services';
 import ServiceDetails from './pages/ServiceDetails';
 import ComingSoon from './pages/ComingSoon';
+import Instances from './pages/Instances';
 
 export default function App() {
   return (
@@ -13,7 +14,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/services" element={<Services />} />
           <Route path="/services/:id" element={<ServiceDetails />} />
-          <Route path="/instances" element={<ComingSoon title="Instances" phase="Phase 5 (when Docker is connected)" />} />
+         <Route path="/instances" element={<Instances />} />
           <Route path="/recovery-history" element={<ComingSoon title="Recovery History" phase="Phase 10" />} />
           <Route path="/failure-history" element={<ComingSoon title="Failure History" phase="Phase 8" />} />
           <Route path="/scaling-history" element={<ComingSoon title="Scaling History" phase="Phase 13" />} />

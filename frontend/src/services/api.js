@@ -16,6 +16,8 @@ export const deleteService = async (id) => (await api.delete(`/services/${id}`))
 export const getDockerContainers = async () => (await api.get('/docker/containers')).data;
 // Sync inspects every container (stats take a moment), so it gets a longer timeout.
 export const syncFromDocker = async () => (await api.post('/docker/sync', null, { timeout: 15000 })).data;
+export const getHealthChecks = async (params = {}) => (await api.get('/health-checks', { params })).data;
+export const getMonitorStatus = async () => (await api.get('/monitor/status')).data;
 
 // Pulls the readable message out of an axios error.
 export const errorMessage = (err) => err.response?.data?.error || err.message;

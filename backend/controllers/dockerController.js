@@ -1,5 +1,5 @@
 const dockerManager = require('../docker/dockerManager');
-const { syncFromDocker } = require('../services/instanceSyncService');
+const healthMonitor = require('../monitoring/healthMonitor');
 
 const DOCKER_DOWN_CODES = ['ENOENT', 'ECONNREFUSED', 'EACCES'];
 
@@ -20,10 +20,10 @@ exports.listContainers = async (req, res, next) => {
   }
 };
 
-// POST /api/docker/sync
+// POST /api/docker/sync  ("Check now": runs one monitor cycle immediately)
 exports.sync = async (req, res, next) => {
   try {
-    res.json({ synced: await syncFromDocker() });
+    res.json({ synced: await healthMonitor.runOnce() });
   } catch (err) {
     handleError(err, res, next);
   }

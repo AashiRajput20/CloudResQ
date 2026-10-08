@@ -1,45 +1,53 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { getService, getServiceInstances, syncFromDocker, errorMessage } from '../services/api';
+import {
+  getService, getServiceInstances, getHealthChecks, syncFromDocker, errorMessage,
+} from '../services/api';
+import usePolling from '../hooks/usePolling';
 import StatusBadge from '../components/StatusBadge';
 
 export default function ServiceDetails() {
   const { id } = useParams();
   const [service, setService] = useState(null);
   const [instances, setInstances] = useState([]);
+  const [checks, setChecks] = useState([]);
   const [loadError, setLoadError] = useState(null);
-  const [syncError, setSyncError] = useState(null);
-  const [syncing, setSyncing] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [svc, inst] = await Promise.all([getService(id), getServiceInstances(id)]);
+      const [svc, inst, hc] = await Promise.all([
+        getService(id),
+        getServiceInstances(id),
+        getHealthChecks({ serviceId: id, limit: 15 }),
+      ]);
       setService(svc);
       setInstances(inst);
+      setChecks(hc);
       setLoadError(null);
     } catch (err) {
       setLoadError(errorMessage(err));
     }
   }, [id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // The Health Monitor updates the database every 5 s; the page re-reads it every 5 s.
+  usePolling(load, 5000);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncError(null);
+  const handleCheckNow = async () => {
+    setBusy(true);
+    setActionError(null);
     try {
       await syncFromDocker();
       await load();
     } catch (err) {
-      setSyncError(errorMessage(err));
+      setActionError(errorMessage(err));
     } finally {
-      setSyncing(false);
+      setBusy(false);
     }
   };
 
-  if (loadError) {
+  if (loadError && !service) {
     return (
       <div className="container">
         <p className="error-box">{loadError}</p>
@@ -54,7 +62,8 @@ export default function ServiceDetails() {
       <Link to="/services">← Back to Services</Link>
       <h2 className="page-title">{service.name}</h2>
 
-      {syncError && <p className="error-box">{syncError}</p>}
+      {loadError && <p className="error-box">Connection problem: {loadError}</p>}
+      {actionError && <p className="error-box">{actionError}</p>}
 
       <section className="card">
         <ul className="details">
@@ -67,20 +76,20 @@ export default function ServiceDetails() {
 
       <section className="card">
         <div className="form-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>Instances</h3>
-          <button className="btn" onClick={handleSync} disabled={syncing}>
-            {syncing ? 'Syncing...' : 'Sync from Docker'}
+          <h3 style={{ margin: 0 }}>Instances <span className="muted small">(live, refreshes every 5 s)</span></h3>
+          <button className="btn" onClick={handleCheckNow} disabled={busy}>
+            {busy ? 'Checking...' : 'Check now'}
           </button>
         </div>
 
         {instances.length === 0 ? (
-          <p className="muted">No instances yet. Start the containers and click "Sync from Docker".</p>
+          <p className="muted">No instances yet. Start the containers (<code>docker compose up -d</code>) and wait a few seconds.</p>
         ) : (
           <table className="table">
             <thead>
               <tr>
                 <th>Instance</th><th>Container</th><th>Status</th><th>CPU</th><th>Memory</th>
-                <th>Restarts</th><th>Failures</th><th>Last Health Check</th>
+                <th>Response</th><th>Fail streak</th><th>Restarts</th><th>Failures</th><th>Last check</th>
               </tr>
             </thead>
             <tbody>
@@ -91,6 +100,8 @@ export default function ServiceDetails() {
                   <td><StatusBadge status={i.status} /></td>
                   <td>{i.cpuUsage}%</td>
                   <td>{i.memoryUsage}%</td>
+                  <td>{i.responseTimeMs != null ? `${i.responseTimeMs} ms` : '-'}</td>
+                  <td>{i.consecutiveFailures}</td>
                   <td>{i.restartCount}</td>
                   <td>{i.failureCount}</td>
                   <td>{i.lastHealthCheck ? new Date(i.lastHealthCheck).toLocaleTimeString() : '-'}</td>
@@ -99,7 +110,36 @@ export default function ServiceDetails() {
             </tbody>
           </table>
         )}
-        <p className="muted small">Values update when you click Sync. Continuous monitoring arrives in Phase 6.</p>
+      </section>
+
+      <section className="card">
+        <h3>Health check history <span className="muted small">(last 15)</span></h3>
+        {checks.length === 0 ? (
+          <p className="muted">No checks recorded yet.</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Time</th><th>Instance</th><th>Result</th><th>HTTP</th>
+                <th>Response</th><th>Error</th><th>Streak</th><th>Status after</th>
+              </tr>
+            </thead>
+            <tbody>
+              {checks.map((c) => (
+                <tr key={c._id}>
+                  <td>{new Date(c.checkedAt).toLocaleTimeString()}</td>
+                  <td>{c.instanceName}</td>
+                  <td className={c.healthy ? 'ok-text' : 'bad-text'}>{c.healthy ? '✔ pass' : '✖ fail'}</td>
+                  <td>{c.httpStatus ?? '-'}</td>
+                  <td>{c.responseTimeMs != null ? `${c.responseTimeMs} ms` : '-'}</td>
+                  <td>{c.error || '-'}</td>
+                  <td>{c.consecutiveFailures}</td>
+                  <td><StatusBadge status={c.statusAfter} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   );

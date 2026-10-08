@@ -12,6 +12,11 @@ const instanceSchema = new mongoose.Schema(
     cpuUsage: { type: Number, default: 0 },    // percent
     memoryUsage: { type: Number, default: 0 }, // percent
     lastHealthCheck: { type: Date, default: null },
+    // Filled in by the Health Monitor (Phase 6)
+    consecutiveFailures: { type: Number, default: 0 },
+    responseTimeMs: { type: Number, default: null },
+    lastError: { type: String, default: null },
+    statusChangedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
