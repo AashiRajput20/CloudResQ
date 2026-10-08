@@ -210,6 +210,21 @@ async function createContainer({ serviceLabel, instanceName, hostPort }) {
   return { containerId: container.id, name, instanceName, hostPort };
 }
 
+// Reads the app's own request counters (used to compute the error rate).
+async function getAppStatus(hostPort) {
+  if (!hostPort) return null;
+  try {
+    const res = await fetch(`http://${cfg.healthHost}:${hostPort}/api/status`, {
+      signal: AbortSignal.timeout(cfg.healthTimeoutMs),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return { requestCount: d.requestCount, errorCount: d.errorCount };
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   LABEL,
   ping,
@@ -217,6 +232,7 @@ module.exports = {
   getContainerStatus,
   getContainerHealth,
   getContainerStats,
+  getAppStatus,
   restartContainer,
   stopContainer,
   startContainer,

@@ -2,17 +2,22 @@
 
 const state = {
   failMode: process.env.FAIL_MODE === 'true', // can also be set at startup
+  latencyMs: 0,                                // artificial delay added to normal requests
   cpuTimer: null,
   memoryHog: [], // holds allocated buffers so they are not garbage collected
 };
 
-const MAX_TOTAL_MEMORY_MB = 215; // safety cap for an 8 GB laptop
+const MAX_TOTAL_MEMORY_MB = 215; // safety cap: must fit inside the 256 MB container limit
 
 function setFailMode(value) {
   state.failMode = value;
 }
 
-// Burns CPU: blocks the event loop for 80 ms out of every 100 ms (about 80% of one core).
+function setLatency(ms) {
+  state.latencyMs = ms;
+}
+
+// Burns CPU: blocks the event loop for 95 ms out of every 100 ms (about 90% of one core).
 function startCpuLoad(seconds = 60) {
   stopCpuLoad();
   const endAt = Date.now() + seconds * 1000;
@@ -38,11 +43,12 @@ function startMemoryLoad(mb = 200) {
 
 function stopMemoryLoad() {
   state.memoryHog = [];
-  if (global.gc) global.gc();
+  if (global.gc) global.gc(); // available because the container runs node with --expose-gc
 }
 
 function resetAll() {
   setFailMode(false);
+  setLatency(0);
   stopCpuLoad();
   stopMemoryLoad();
 }
@@ -50,12 +56,13 @@ function resetAll() {
 function status() {
   return {
     failMode: state.failMode,
+    latencyMs: state.latencyMs,
     cpuLoadActive: state.cpuTimer !== null,
     simulatedMemoryMB: Math.round(state.memoryHog.reduce((s, b) => s + b.length / 1024 / 1024, 0)),
   };
 }
 
 module.exports = {
-  state, setFailMode, startCpuLoad, stopCpuLoad,
+  state, setFailMode, setLatency, startCpuLoad, stopCpuLoad,
   startMemoryLoad, stopMemoryLoad, resetAll, status,
 };

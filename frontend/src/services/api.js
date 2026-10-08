@@ -20,6 +20,7 @@ export const getHealthChecks = async (params = {}) => (await api.get('/health-ch
 export const getMonitorStatus = async () => (await api.get('/monitor/status')).data;
 
 // Pulls the readable message out of an axios error.
+export const getFailures = async (params = {}) => (await api.get('/failures', { params })).data;
 export const errorMessage = (err) => err.response?.data?.error || err.message;
 
 export default api;

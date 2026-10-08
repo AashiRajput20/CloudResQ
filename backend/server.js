@@ -7,6 +7,7 @@ const serviceRoutes = require('./routes/serviceRoutes');
 const dockerRoutes = require('./routes/dockerRoutes');
 const monitorRoutes = require('./routes/monitorRoutes');
 const healthMonitor = require('./monitoring/healthMonitor');
+const failureRoutes = require('./routes/failureRoutes');
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/docker', dockerRoutes);
 app.use('/api', monitorRoutes);
+app.use('/api/failures', failureRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {

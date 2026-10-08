@@ -17,6 +17,7 @@ const instanceSchema = new mongoose.Schema(
     responseTimeMs: { type: Number, default: null },
     lastError: { type: String, default: null },
     statusChangedAt: { type: Date, default: null },
+        firstFailureAt: { type: Date, default: null }, // time of the first failed check in the current streak
   },
   { timestamps: true }
 );

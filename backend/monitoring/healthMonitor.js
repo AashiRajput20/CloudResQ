@@ -1,6 +1,6 @@
 // Health Monitor: checks every managed container on a schedule, stores the result,
 // and updates each Instance's status using the "N consecutive failures" rule.
-// It only OBSERVES. Recovery actions come in later phases.
+// After each cycle it hands its observations to the Failure Detector.
 const config = require('../config');
 const dockerManager = require('../docker/dockerManager');
 const Service = require('../models/Service');
@@ -8,6 +8,7 @@ const Instance = require('../models/Instance');
 const HealthCheck = require('../models/HealthCheck');
 const { ensureService } = require('../services/serviceRegistry');
 const { evaluateHealthState } = require('./healthState');
+const failureDetector = require('./failureDetector');
 
 const cfg = config.monitor;
 
@@ -27,11 +28,13 @@ async function probe(c) {
     return {
       healthy: false, containerState: c.state, httpStatus: null, responseTimeMs: null,
       error: `container ${c.state}`, cpuPercent: 0, memoryPercent: 0,
+      requestCount: null, errorCount: null,
     };
   }
-  const [health, stats] = await Promise.all([
+  const [health, stats, app] = await Promise.all([
     dockerManager.getContainerHealth(c.containerId),
     dockerManager.getContainerStats(c.containerId).catch(() => null),
+    dockerManager.getAppStatus(c.hostPort),
   ]);
   return {
     healthy: health.healthy,
@@ -41,6 +44,8 @@ async function probe(c) {
     error: health.error,
     cpuPercent: stats?.cpuPercent ?? 0,
     memoryPercent: stats?.memoryPercent ?? 0,
+    requestCount: app?.requestCount ?? null,
+    errorCount: app?.errorCount ?? null,
   };
 }
 
@@ -54,6 +59,7 @@ async function processGroup(label, list) {
   const now = new Date();
   const checks = [];
   const statuses = [];
+  const observations = [];
 
   await Promise.all(
     list.map(async (c, idx) => {
@@ -78,6 +84,9 @@ async function processGroup(label, list) {
         lastHealthCheck: now,
       };
       if (!prev || prev.status !== next.status) set.statusChangedAt = now;
+      // Remember when the current failure streak began (used for detection time).
+      if (next.consecutiveFailures === 0) set.firstFailureAt = null;
+      else if (next.consecutiveFailures === 1) set.firstFailureAt = now;
 
       if (prev && prev.status !== next.status) {
         console.log(`[Monitor] ${c.instanceName}: ${prev.status} -> ${next.status} (${r.error || 'ok'})`);
@@ -105,6 +114,7 @@ async function processGroup(label, list) {
         checkedAt: now,
       });
       statuses.push(next.status);
+      observations.push({ instance, probe: r });
     })
   );
 
@@ -115,6 +125,13 @@ async function processGroup(label, list) {
     serviceId: service._id,
     instanceName: { $nin: list.map((c) => c.instanceName) },
   });
+
+  // The detector must never break monitoring.
+  try {
+    await failureDetector.detect(service, observations);
+  } catch (err) {
+    console.warn(`[Detector] failed: ${err.message}`);
+  }
 
   const healthy = statuses.filter((s) => s === 'HEALTHY').length;
   const serviceStatus = healthy === statuses.length ? 'HEALTHY' : healthy === 0 ? 'FAILED' : 'WARNING';

@@ -5,6 +5,7 @@ import Services from './pages/Services';
 import ServiceDetails from './pages/ServiceDetails';
 import ComingSoon from './pages/ComingSoon';
 import Instances from './pages/Instances';
+import FailureHistory from './pages/FailureHistory';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/analytics" element={<ComingSoon title="Analytics" phase="Phase 14" />} />
           <Route path="/settings" element={<ComingSoon title="System Settings" phase="Phase 14" />} />
           <Route path="*" element={<ComingSoon title="Page Not Found" phase="never :)" />} />
+          <Route path="/failure-history" element={<FailureHistory />} />
         </Route>
       </Routes>
     </BrowserRouter>

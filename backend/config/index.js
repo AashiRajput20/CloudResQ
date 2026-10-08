@@ -25,4 +25,22 @@ module.exports = {
     failureThreshold: parseInt(process.env.FAILURE_THRESHOLD, 10) || 3,
     historyHours: parseInt(process.env.HEALTH_HISTORY_HOURS, 10) || 24,
   },
+
+    detection: {
+    cpuThreshold: parseFloat(process.env.CPU_SCALE_OUT_THRESHOLD) || 85,
+    memoryThreshold: parseFloat(process.env.MEMORY_SCALE_OUT_THRESHOLD) || 85,
+    latencyThresholdMs: parseInt(process.env.LATENCY_THRESHOLD_MS, 10) || 500,
+    errorRateThreshold: parseFloat(process.env.ERROR_RATE_THRESHOLD) || 50, // percent of 5xx
+    minRequestsForErrorRate: parseInt(process.env.MIN_REQUESTS_FOR_ERROR_RATE, 10) || 10,
+
+    // How long a condition must hold (as a window average) before it counts as a failure
+    cpuSustainSeconds: parseInt(process.env.CPU_SUSTAIN_SECONDS, 10) || 60,
+    memorySustainSeconds: parseInt(process.env.MEMORY_SUSTAIN_SECONDS, 10) || 60,
+    latencySustainSeconds: parseInt(process.env.LATENCY_SUSTAIN_SECONDS, 10) || 30,
+    errorRateSustainSeconds: parseInt(process.env.ERROR_RATE_SUSTAIN_SECONDS, 10) || 15,
+
+    // REPEATED_FAILURE: N availability failures within M minutes
+    repeatedFailureCount: parseInt(process.env.REPEATED_FAILURE_COUNT, 10) || 3,
+    repeatedFailureWindowMinutes: parseInt(process.env.REPEATED_FAILURE_WINDOW_MINUTES, 10) || 10,
+  },
 };

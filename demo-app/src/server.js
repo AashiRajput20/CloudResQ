@@ -18,6 +18,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// Simulated slowness: delays normal requests (never the /simulate/* controls).
+app.use((req, res, next) => {
+  const ms = simulation.state.latencyMs;
+  if (!ms || req.path.startsWith('/simulate')) return next();
+  setTimeout(next, ms);
+});
+
 const now = () => new Date().toISOString();
 
 // ---------- Normal endpoints ----------
@@ -72,6 +79,13 @@ app.post('/simulate/memory', (req, res) => {
   const mb = Number(req.body?.mb) || 210;
   const allocated = simulation.startMemoryLoad(mb);
   res.json({ message: `${INSTANCE_ID}: allocated ${allocated} MB`, ...simulation.status() });
+});
+
+app.post('/simulate/latency', (req, res) => {
+  // capped at 2500 ms so it stays under the monitor's 3 s timeout
+  const ms = Math.min(Number(req.body?.ms) || 800, 2500);
+  simulation.setLatency(ms);
+  res.json({ message: `${INSTANCE_ID}: adding ${ms} ms delay to requests`, ...simulation.status() });
 });
 
 // Crash: the process exits, which stops the container (CONTAINER_DOWN).

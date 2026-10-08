@@ -14,4 +14,4 @@ EXPOSE 3000
 # Run as the non-root user that ships with the node image
 USER node
 
-CMD ["node", "src/server.js"]
+CMD ["node", "--expose-gc", "src/server.js"]
