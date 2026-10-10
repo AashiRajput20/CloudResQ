@@ -10,6 +10,7 @@ const healthMonitor = require('./monitoring/healthMonitor');
 const failureRoutes = require('./routes/failureRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
 const instanceRoutes = require('./routes/instanceRoutes');
+const decisionRoutes = require('./routes/decisionRoutes');
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/api', monitorRoutes);
 app.use('/api/failures', failureRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/instances', instanceRoutes);
+app.use('/api/decisions', decisionRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {

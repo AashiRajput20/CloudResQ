@@ -18,6 +18,7 @@ const instanceSchema = new mongoose.Schema(
     lastError: { type: String, default: null },
     statusChangedAt: { type: Date, default: null },
         firstFailureAt: { type: Date, default: null }, // time of the first failed check in the current streak
+        inTraffic: { type: Boolean, default: true }, // false = removed from the load balancer (set in Phase 11)
   },
   { timestamps: true }
 );

@@ -15,6 +15,7 @@ const AVAILABILITY = ['CONTAINER_DOWN', 'HEALTH_CHECK_FAILED'];
 const windows = new Map();  // "instanceId:TYPE" -> SampleWindow
 const counters = new Map(); // instanceId -> last seen { requestCount, errorCount }
 const lastErrorRates = new Map(); // instanceId -> latest error-rate sample (read by the Analyzer)
+const requestDeltas = new Map(); // instanceId -> requests since the previous check (read by the Decision service)
 
 const round = (n) => Math.round(n * 10) / 10;
 const isFor = (f, inst) => String(f.instanceId) === String(inst._id);
@@ -29,9 +30,13 @@ function errorRateSample(o) {
   const id = String(o.instance._id);
   const prev = counters.get(id);
   counters.set(id, { requestCount, errorCount });
-  if (!prev || requestCount < prev.requestCount) return 0; // first look, or the container restarted
+  if (!prev || requestCount < prev.requestCount) { // first look, or the container restarted
+    requestDeltas.set(id, null);
+    return 0;
+  }
   const dReq = requestCount - prev.requestCount;
   const dErr = errorCount - prev.errorCount;
+  requestDeltas.set(id, dReq);
   return dReq < cfg.minRequestsForErrorRate ? 0 : (dErr / dReq) * 100;
 }
 
@@ -225,4 +230,5 @@ async function detect(service, observations) {
 module.exports = {
   detect,
   getLastErrorRate: (instanceId) => lastErrorRates.get(String(instanceId)) ?? null,
+  getLastRequestDelta: (instanceId) => requestDeltas.get(String(instanceId)) ?? null,
 };

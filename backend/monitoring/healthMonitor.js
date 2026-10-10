@@ -9,6 +9,7 @@ const HealthCheck = require('../models/HealthCheck');
 const { ensureService } = require('../services/serviceRegistry');
 const { evaluateHealthState } = require('./healthState');
 const failureDetector = require('./failureDetector');
+const decisionService = require('../services/decisionService');
 
 const cfg = config.monitor;
 
@@ -139,6 +140,15 @@ async function processGroup(label, list) {
     { _id: service._id },
     { currentReplicas: list.filter((c) => c.state === 'running').length, status: serviceStatus }
   );
+
+    // The Decision Engine must never break monitoring either.
+  if (config.decision.enabled) {
+    try {
+      await decisionService.run(service);
+    } catch (err) {
+      console.warn(`[Decision] failed: ${err.message}`);
+    }
+  }
 
   return { service: service.name, containers: list.length, healthy, status: serviceStatus };
 }

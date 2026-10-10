@@ -1,4 +1,5 @@
 import useBackendHealth from '../hooks/useBackendHealth';
+import LastDecisionCard from '../components/LastDecisionCard';
 
 export default function Dashboard() {
   const { health, error, loading } = useBackendHealth(5000);
@@ -51,6 +52,7 @@ export default function Dashboard() {
           </li>
         </ul>
       </section>
+      <LastDecisionCard />
     </div>
   );
 }

@@ -8,7 +8,8 @@
   "seed": "node utils/seed.js",
   "docker:test": "node utils/dockerTest.js",
   "analyze": "node utils/analyzerDemo.js",
-  "test": "node --test"
+  "test": "node --test",
+  "limits": "node utils/setLimits.js"
   },
   "keywords": [],
   "author": "",
