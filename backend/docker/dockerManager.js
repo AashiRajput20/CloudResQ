@@ -2,6 +2,7 @@
 // Everything else in CloudResQ calls these functions.
 const docker = require('./dockerClient');
 const config = require('../config');
+const { Writable } = require('stream');
 
 const cfg = config.docker;
 
@@ -237,6 +238,33 @@ async function postToApp(hostPort, path, body = {}) {
   if (!res.ok) throw new Error(data.error || `App returned HTTP ${res.status}`);
   return data;
 }
+
+// Runs a command inside a container and returns { exitCode, output }.
+// Used by the Load Balancer Manager for `nginx -t` and `nginx -s reload`.
+async function execInContainer(ref, cmd, timeoutMs = 10000) {
+  const container = getContainer(ref);
+  const exec = await container.exec({ Cmd: cmd, AttachStdout: true, AttachStderr: true });
+  const stream = await exec.start({ Detach: false, Tty: false });
+
+  const chunks = [];
+  const sink = () => new Writable({ write(chunk, _enc, cb) { chunks.push(chunk); cb(); } });
+  docker.modem.demuxStream(stream, sink(), sink()); // splits Docker's multiplexed stdout/stderr
+
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      stream.destroy();
+      reject(new Error(`exec timed out: ${cmd.join(' ')}`));
+    }, timeoutMs);
+    const finish = () => { clearTimeout(timer); resolve(); };
+    stream.on('end', finish);
+    stream.on('close', finish);
+    stream.on('error', (e) => { clearTimeout(timer); reject(e); });
+  });
+
+  const info = await exec.inspect();
+  return { exitCode: info.ExitCode, output: Buffer.concat(chunks).toString('utf8').replace(/\r/g, '').trim() };
+}
+
 module.exports = {
   LABEL,
   ping,
@@ -251,4 +279,5 @@ module.exports = {
   removeContainer,
   createContainer,
   postToApp,
+  execInContainer,
 };

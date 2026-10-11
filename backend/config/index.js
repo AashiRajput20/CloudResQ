@@ -61,4 +61,12 @@ module.exports = {
     recoveredDisplaySeconds: parseInt(process.env.RECOVERED_DISPLAY_SECONDS, 10) || 15,
     retryCooldownSeconds: parseInt(process.env.RECOVERY_RETRY_COOLDOWN_SECONDS, 10) || 60,
   },
+  nginx: {
+    enabled: process.env.NGINX_ENABLED !== 'false',
+    containerName: process.env.NGINX_CONTAINER || 'cloudresq-nginx',
+    serviceLabel: process.env.NGINX_SERVICE_LABEL || 'demo-service', // which service Nginx fronts
+    upstreamPath: process.env.NGINX_UPSTREAM_PATH || '/etc/nginx/conf.d/upstream.conf', // path INSIDE the container
+    hostPort: parseInt(process.env.NGINX_HOST_PORT, 10) || 8080, // only used to show the URL on the dashboard
+  },
+
 };

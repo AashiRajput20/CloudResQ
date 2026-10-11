@@ -11,6 +11,7 @@ const { evaluateHealthState } = require('./healthState');
 const failureDetector = require('./failureDetector');
 const decisionService = require('../services/decisionService');
 const recoveryController = require('../recovery/recoveryController');
+const loadBalancer = require('../loadbalancer/trafficManager');
 
 const cfg = config.monitor;
 
@@ -170,6 +171,9 @@ async function processGroup(label, list) {
     }
   }
 
+    // Keep Nginx's backend list in step with the traffic pool. Never throws.
+  if (config.nginx.enabled) await loadBalancer.sync();
+  
   return { service: service.name, containers: list.length, healthy, status: serviceStatus };
 }
 

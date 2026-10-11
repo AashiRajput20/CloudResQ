@@ -22,6 +22,23 @@ services:
       - cloudresq-net
     restart: unless-stopped
 
+  nginx:
+    image: nginx:latest          # already on your laptop, so no download
+    container_name: cloudresq-nginx
+    # Reset the backend list to the placeholder on every start; CloudResQ refills it.
+    command:
+      - /bin/sh
+      - -c
+      - "cp /etc/nginx/upstream.placeholder /etc/nginx/conf.d/upstream.conf && exec nginx -g 'daemon off;'"
+    ports:
+      - "8080:80"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/upstream.placeholder.conf:/etc/nginx/upstream.placeholder:ro
+    networks:
+      - cloudresq-net
+    mem_limit: 64m
+    restart: unless-stopped
   app-1:
     <<: *demo-app
     container_name: cloudresq-app-1

@@ -30,6 +30,8 @@ export const replaceInstance = async (id) => (await api.post(`/instances/${id}/r
 export const simulateInstance = async (id, type) => (await api.post(`/instances/${id}/simulate`, { type })).data;
 export const restartService = async (id) => (await api.post(`/services/${id}/restart`, null, { timeout: 180000 })).data;
 export const getRecoveryEvents = async (params = {}) => (await api.get('/recovery-events', { params })).data;
+export const getLoadBalancer = async () => (await api.get('/loadbalancer')).data;
+export const syncLoadBalancer = async () => (await api.post('/loadbalancer/sync', null, { timeout: 20000 })).data;
 export const errorMessage = (err) => err.response?.data?.error || err.message;
 
 export default api;

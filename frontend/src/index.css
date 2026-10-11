@@ -162,3 +162,5 @@ h4 { margin-top: 20px; }
   padding: 10px 14px;
   border-radius: 8px;
 }
+
+.pool-list { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }

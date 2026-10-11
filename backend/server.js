@@ -13,6 +13,7 @@ const decisionRoutes = require('./routes/decisionRoutes');
 const recoveryRoutes = require('./routes/recoveryRoutes');
 const healthMonitor = require('./monitoring/healthMonitor');
 const recoveryController = require('./recovery/recoveryController');
+const loadBalancerRoutes = require('./routes/loadBalancerRoutes');
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/analysis', analysisRoutes);
 app.use('/api/instances', instanceRoutes);
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/recovery-events', recoveryRoutes);
+app.use('/api/loadbalancer', loadBalancerRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {

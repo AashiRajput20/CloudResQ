@@ -12,6 +12,7 @@ const RecoveryEvent = require('../models/RecoveryEvent');
 const decisionService = require('../services/decisionService');
 const { slugify } = require('../services/serviceRegistry');
 const { nextSlot } = require('./instanceNaming');
+const loadBalancer = require('../loadbalancer/trafficManager');
 
 const cfg = config.recovery;
 const busy = new Set(); // "serviceId:instanceName" of instances being recovered right now
@@ -91,6 +92,7 @@ async function setTraffic(ctx, inTraffic) {
   const action = inTraffic ? 'ADD_TO_TRAFFIC' : 'REMOVE_FROM_TRAFFIC';
   const now = new Date();
   await Instance.updateOne({ _id: ctx.instance._id }, { $set: { inTraffic } });
+    loadBalancer.sync(); // not awaited: Nginx follows the traffic pool within a moment
   const event = await RecoveryEvent.create({
     serviceId: ctx.service._id, instanceId: ctx.instance._id, instanceName: ctx.instance.instanceName,
     action, reason: ctx.reason, trigger: ctx.trigger, priority: ctx.priority, confidence: ctx.confidence,
@@ -199,6 +201,7 @@ async function startRecovery(action, ctx) {
     const update = { $set: { status: 'RECOVERING', statusChangedAt: new Date() } };
     if (action === 'RESTART') update.$inc = { restartCount: 1 };
     await Instance.updateOne({ _id: instance._id }, update);
+        loadBalancer.sync(); // a RECOVERING instance leaves the pool
     if (ctx.decisionId) await Decision.updateOne({ _id: ctx.decisionId }, { $set: { status: 'EXECUTING' } });
   } catch (err) {
     busy.delete(key);
@@ -209,7 +212,10 @@ async function startRecovery(action, ctx) {
   const run = action === 'RESTART' ? runRestart : runReplace;
   const done = run(ctx, event)
     .catch((err) => console.error(`[Recovery] ${instance.instanceName}: unexpected error - ${err.message}`))
-    .finally(() => busy.delete(key)); // released only AFTER the final status was written
+        .finally(() => {
+      busy.delete(key); // released only AFTER the final status was written
+      loadBalancer.sync(); // recovered instances rejoin, removed ones leave
+    });
   return { event, done };
 }
 
