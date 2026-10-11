@@ -13,15 +13,19 @@ const recoveryEventSchema = new mongoose.Schema(
 
     action: { type: String, enum: ACTIONS, required: true },
     reason: { type: String, default: '' },
-    trigger: { type: String, default: null },   // failure type that caused it
+    trigger: { type: String, default: null },   // failure type that caused it, or MANUAL
     priority: { type: String, default: null },
     confidence: { type: Number, default: null },
+    source: { type: String, enum: ['AUTO', 'MANUAL'], default: 'AUTO' },
+    decisionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Decision', default: null },
+    failureCount: { type: Number, default: 0 }, // availability failures in the window when it started
 
     startedAt: { type: Date, default: Date.now },
     completedAt: { type: Date, default: null },
     duration: { type: Number, default: null },  // seconds
     status: { type: String, enum: ['IN_PROGRESS', 'SUCCESS', 'FAILED'], default: 'IN_PROGRESS' },
     retryCount: { type: Number, default: 0 },
+    error: { type: String, default: null },
 
     // For REPLACE: which instance was removed and which one took its place
     oldInstance: { type: String, default: null },
@@ -33,6 +37,7 @@ const recoveryEventSchema = new mongoose.Schema(
 );
 
 recoveryEventSchema.index({ serviceId: 1, instanceName: 1, startedAt: -1 });
+recoveryEventSchema.index({ startedAt: -1 });
 
 module.exports = mongoose.model('RecoveryEvent', recoveryEventSchema);
 module.exports.ACTIONS = ACTIONS;

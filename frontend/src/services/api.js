@@ -24,6 +24,12 @@ export const getFailures = async (params = {}) => (await api.get('/failures', { 
 export const getAnalysis = async (params = {}) => (await api.get('/analysis', { params })).data;
 export const getDecisions = async (params = {}) => (await api.get('/decisions', { params })).data;
 export const getLiveDecisions = async (params = {}) => (await api.get('/decisions/live', { params })).data;
+// Actions can take a while (restart + verification), so they get longer timeouts.
+export const restartInstance = async (id) => (await api.post(`/instances/${id}/restart`, null, { timeout: 60000 })).data;
+export const replaceInstance = async (id) => (await api.post(`/instances/${id}/replace`, null, { timeout: 90000 })).data;
+export const simulateInstance = async (id, type) => (await api.post(`/instances/${id}/simulate`, { type })).data;
+export const restartService = async (id) => (await api.post(`/services/${id}/restart`, null, { timeout: 180000 })).data;
+export const getRecoveryEvents = async (params = {}) => (await api.get('/recovery-events', { params })).data;
 export const errorMessage = (err) => err.response?.data?.error || err.message;
 
 export default api;

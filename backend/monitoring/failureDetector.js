@@ -147,8 +147,9 @@ async function checkAvailability(service, o, active) {
     return true;
   }
 
-  if (inst.status === 'HEALTHY' && current) await close(current, 'Instance healthy again');
-  return false;
+    if ((inst.status === 'HEALTHY' || inst.status === 'RECOVERED') && current) {
+    await close(current, 'Instance healthy again');
+  }
 }
 
 // ---------- 2. CPU / memory / latency / error rate ----------

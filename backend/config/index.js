@@ -53,4 +53,12 @@ module.exports = {
     minimumReplicas: parseInt(process.env.MIN_REPLICAS, 10) || 2,
     maximumReplicas: parseInt(process.env.MAX_REPLICAS, 10) || 5,
   },
+    recovery: {
+    autoEnabled: process.env.AUTO_RECOVERY !== 'false', // false = decisions are only proposed
+    verifyTimeoutMs: parseInt(process.env.RECOVERY_VERIFY_TIMEOUT_MS, 10) || 15000,
+    verifyIntervalMs: parseInt(process.env.RECOVERY_VERIFY_INTERVAL_MS, 10) || 1000,
+    verifySuccesses: parseInt(process.env.RECOVERY_VERIFY_SUCCESSES, 10) || 2, // passes in a row
+    recoveredDisplaySeconds: parseInt(process.env.RECOVERED_DISPLAY_SECONDS, 10) || 15,
+    retryCooldownSeconds: parseInt(process.env.RECOVERY_RETRY_COOLDOWN_SECONDS, 10) || 60,
+  },
 };

@@ -3,7 +3,7 @@
 //  2. adds service-level facts (replicas, average CPU, traffic)
 //  3. asks the engine for a decision per instance
 //  4. keeps ONE service-level scaling proposal
-//  5. logs decisions that changed (Phase 9: proposals only, nothing is executed)
+//  5. logs decisions that CHANGED; those are flagged isNew so the Recovery Controller executes them
 const Service = require('../models/Service');
 const Instance = require('../models/Instance');
 const Decision = require('../models/Decision');
@@ -31,12 +31,39 @@ function keepOne(decisions, match, pickLast = false) {
   }
 }
 
+// While the Recovery Controller works on an instance, the engine waits for the result.
+function recoveringDecision(instance, service, facts) {
+  return {
+    instanceName: instance.instanceName,
+    action: 'NO_ACTION',
+    trafficAction: null,
+    priority: 'LOW',
+    confidence: 1,
+    rule: 'RECOVERY_IN_PROGRESS',
+    reason: `${instance.instanceName} is being recovered right now, so the engine waits for the result before deciding again.`,
+    blockedBy: null,
+    scale: null,
+    trigger: null,
+    decidedAt: new Date().toISOString(),
+    instanceId: instance._id,
+    serviceId: service._id,
+    serviceName: service.name,
+    inTraffic: instance.inTraffic !== false,
+    inputs: {
+      health: 'RECOVERING', failureType: null, failureCount: 0,
+      consecutiveFailures: instance.consecutiveFailures || 0, recentRestarts: 0, failedRestarts: 0,
+      cpu: instance.cpuUsage, memory: instance.memoryUsage, responseTimeMs: instance.responseTimeMs,
+      errorRate: null, service: facts,
+    },
+  };
+}
+
 async function evaluateService(service, { track = false } = {}) {
   const instances = await Instance.find({ serviceId: service._id }).sort({ instanceName: 1 });
   if (instances.length === 0) return [];
 
   const running = instances.filter((i) => i.status !== 'FAILED' && i.status !== 'UNKNOWN');
-  const healthy = instances.filter((i) => i.status === 'HEALTHY');
+  const healthy = instances.filter((i) => i.status === 'HEALTHY' || i.status === 'RECOVERED');
   const avgCpu = running.length ? running.reduce((s, i) => s + (i.cpuUsage || 0), 0) / running.length : null;
 
   // How long has the average CPU been below the scale-in threshold? (only the monitor updates this)
@@ -67,6 +94,10 @@ async function evaluateService(service, { track = false } = {}) {
 
   const results = [];
   for (const instance of instances) {
+    if (instance.status === 'RECOVERING') {
+      results.push(recoveringDecision(instance, service, facts));
+      continue;
+    }
     const analysis = await analyzeInstance(instance, service);
     const decision = evaluateInstance({ analysis, inTraffic: instance.inTraffic !== false, service: facts });
     results.push({
@@ -106,6 +137,7 @@ async function evaluateAll({ serviceId } = {}) {
 }
 
 // Saves a decision only when it CHANGED for that instance, so the log is not flooded every 5 s.
+// New decisions get isNew + decisionId, which is how the Recovery Controller knows what to execute.
 async function logDecisions(results) {
   for (const d of results) {
     const id = String(d.instanceId);
@@ -117,7 +149,7 @@ async function logDecisions(results) {
     if (lastLogged.get(id) === sig) continue;
     lastLogged.set(id, sig);
 
-    await Decision.create({
+    const doc = await Decision.create({
       serviceId: d.serviceId, serviceName: d.serviceName,
       instanceId: d.instanceId, instanceName: d.instanceName,
       action: d.action, trafficAction: d.trafficAction,
@@ -126,16 +158,24 @@ async function logDecisions(results) {
       blockedBy: d.blockedBy, scale: d.scale, inputs: d.inputs,
       status: 'PROPOSED',
     });
+    d.isNew = true;
+    d.decisionId = doc._id;
+
     const traffic = d.trafficAction ? ` + ${d.trafficAction}` : '';
     console.log(`[Decision] ${d.instanceName}: ${d.action}${traffic} (${d.priority}, confidence ${d.confidence}) - ${d.reason}`);
   }
 }
 
-// Called by the Health Monitor after each cycle.
+// Lets the engine propose the same decision again (used after a failed REPLACE, following a cooldown).
+function forget(instanceId) {
+  lastLogged.delete(String(instanceId));
+}
+
+// Called by the Health Monitor after each cycle. Returns the decisions (new ones are flagged).
 async function run(service) {
   const results = await evaluateService(service, { track: true });
   await logDecisions(results);
   return results;
 }
 
-module.exports = { evaluateService, evaluateAll, run };
+module.exports = { evaluateService, evaluateAll, run, forget };

@@ -1,16 +1,40 @@
 // Failure simulation. Lets us trigger realistic problems on demand for the demo.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// "Persistent" failure: a flag file inside the container. It survives `docker restart`
+// (the container's filesystem is kept) but NOT a replacement (a new container starts clean).
+// That is exactly the situation where RESTART fails and the Decision Engine chooses REPLACE.
+const FLAG_FILE = path.join(os.tmpdir(), 'cloudresq-persistent-failure');
+const flagExists = () => {
+  try { return fs.existsSync(FLAG_FILE); } catch { return false; }
+};
 
 const state = {
-  failMode: process.env.FAIL_MODE === 'true', // can also be set at startup
-  latencyMs: 0,                                // artificial delay added to normal requests
+  failMode: process.env.FAIL_MODE === 'true' || flagExists(), // the flag re-enables failure after a restart
+  persistent: flagExists(),
+  latencyMs: 0,   // artificial delay added to normal requests
   cpuTimer: null,
-  memoryHog: [], // holds allocated buffers so they are not garbage collected
+  memoryHog: [],  // holds allocated buffers so they are not garbage collected
 };
 
 const MAX_TOTAL_MEMORY_MB = 215; // safety cap: must fit inside the 256 MB container limit
 
 function setFailMode(value) {
   state.failMode = value;
+}
+
+// Returns true if the flag could be stored (so the failure really survives a restart).
+function setPersistentFailure() {
+  state.failMode = true;
+  try {
+    fs.writeFileSync(FLAG_FILE, new Date().toISOString());
+    state.persistent = true;
+  } catch {
+    state.persistent = false;
+  }
+  return state.persistent;
 }
 
 function setLatency(ms) {
@@ -51,11 +75,14 @@ function resetAll() {
   setLatency(0);
   stopCpuLoad();
   stopMemoryLoad();
+  try { fs.rmSync(FLAG_FILE, { force: true }); } catch { /* nothing to remove */ }
+  state.persistent = false;
 }
 
 function status() {
   return {
     failMode: state.failMode,
+    persistent: state.persistent,
     latencyMs: state.latencyMs,
     cpuLoadActive: state.cpuTimer !== null,
     simulatedMemoryMB: Math.round(state.memoryHog.reduce((s, b) => s + b.length / 1024 / 1024, 0)),
@@ -63,6 +90,6 @@ function status() {
 }
 
 module.exports = {
-  state, setFailMode, setLatency, startCpuLoad, stopCpuLoad,
+  state, setFailMode, setPersistentFailure, setLatency, startCpuLoad, stopCpuLoad,
   startMemoryLoad, stopMemoryLoad, resetAll, status,
 };

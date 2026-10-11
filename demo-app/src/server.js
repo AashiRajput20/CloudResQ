@@ -64,6 +64,15 @@ app.post('/simulate/failure', (req, res) => {
   res.json({ message: `${INSTANCE_ID}: /health will now return 503`, ...simulation.status() });
 });
 
+// Survives a container restart (flag file) but not a replacement. Used to show RESTART failing -> REPLACE.
+app.post('/simulate/persistent-failure', (req, res) => {
+  const stored = simulation.setPersistentFailure();
+  res.json({
+    message: `${INSTANCE_ID}: persistent failure enabled${stored ? ' (survives restarts)' : ' (could not be stored, a restart will clear it)'}`,
+    ...simulation.status(),
+  });
+});
+
 app.post('/simulate/recovery', (req, res) => {
   simulation.resetAll();
   res.json({ message: `${INSTANCE_ID}: all simulated failures cleared`, ...simulation.status() });
@@ -97,6 +106,15 @@ app.post('/simulate/crash', (req, res) => {
 // Unknown routes
 app.use((req, res) => res.status(404).json({ error: 'Not found', service: INSTANCE_ID }));
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[${INSTANCE_ID}] listening on port ${PORT} (failMode=${simulation.state.failMode})`);
 });
+
+// Docker stops a container with SIGTERM. Node running as PID 1 ignores it by default,
+// which made every restart wait 5 s for a forced kill. Exiting right away makes recovery fast.
+const shutdown = () => {
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 1000).unref();
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

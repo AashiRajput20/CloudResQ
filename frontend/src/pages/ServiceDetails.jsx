@@ -1,12 +1,23 @@
 import { useCallback, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  getService, getServiceInstances, getHealthChecks, syncFromDocker, errorMessage,
+  getService, getServiceInstances, getHealthChecks, syncFromDocker,
+  restartInstance, replaceInstance, simulateInstance, restartService, errorMessage,
 } from '../services/api';
 import usePolling from '../hooks/usePolling';
 import StatusBadge from '../components/StatusBadge';
 import AnalysisPanel from '../components/AnalysisPanel';
 import DecisionPanel from '../components/DecisionPanel';
+
+const SIM_TYPES = [
+  ['health', 'Health failure (503)'],
+  ['persistent', 'Repeated failure (survives restart)'],
+  ['crash', 'Container crash'],
+  ['cpu', 'High CPU (120 s)'],
+  ['memory', 'High memory'],
+  ['latency', 'High latency'],
+  ['recovery', 'Clear simulation (recover)'],
+];
 
 export default function ServiceDetails() {
   const { id } = useParams();
@@ -15,7 +26,9 @@ export default function ServiceDetails() {
   const [checks, setChecks] = useState([]);
   const [loadError, setLoadError] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [busyKey, setBusyKey] = useState(null);
+  const [simType, setSimType] = useState({}); // instanceId -> selected simulation
 
   const load = useCallback(async () => {
     try {
@@ -36,18 +49,48 @@ export default function ServiceDetails() {
   // The Health Monitor updates the database every 5 s; the page re-reads it every 5 s.
   usePolling(load, 5000);
 
-  const handleCheckNow = async () => {
-    setBusy(true);
+  // Runs one action, shows the result, then refreshes the page data.
+  const run = async (key, fn, okMessage) => {
+    setBusyKey(key);
     setActionError(null);
+    setNotice(null);
     try {
-      await syncFromDocker();
+      const result = await fn();
+      setNotice(okMessage(result));
       await load();
     } catch (err) {
       setActionError(errorMessage(err));
     } finally {
-      setBusy(false);
+      setBusyKey(null);
     }
   };
+
+  const simFor = (i) => simType[i._id] || 'health';
+
+  const handleRestart = (i) =>
+    run(`${i._id}:restart`, () => restartInstance(i._id), (e) =>
+      e.status === 'SUCCESS'
+        ? `${i.instanceName}: restarted and healthy again in ${e.duration} s`
+        : `${i.instanceName}: restart failed (${e.error})`);
+
+  const handleReplace = (i) => {
+    if (!window.confirm(`Replace ${i.instanceName} with a brand-new instance?`)) return null;
+    return run(`${i._id}:replace`, () => replaceInstance(i._id), (e) =>
+      e.status === 'SUCCESS'
+        ? `${e.oldInstance} replaced by ${e.newInstance} in ${e.duration} s`
+        : `Replace failed (${e.error})`);
+  };
+
+  const handleSimulate = (i) =>
+    run(`${i._id}:sim`, () => simulateInstance(i._id, simFor(i)), (r) => r.message || 'Simulation started');
+
+  const handleRolling = () => {
+    if (!window.confirm('Restart every instance, one after another?')) return null;
+    return run('service:restart', () => restartService(id), (r) =>
+      `Rolling restart finished: ${r.results.map((x) => `${x.instance} ${x.status}`).join(', ')}`);
+  };
+
+  const handleCheckNow = () => run('check', () => syncFromDocker(), () => 'Checked all instances');
 
   if (loadError && !service) {
     return (
@@ -59,13 +102,16 @@ export default function ServiceDetails() {
   }
   if (!service) return <div className="container"><p className="muted">Loading...</p></div>;
 
+  const anyBusy = !!busyKey;
+
   return (
-    <div className="container">
+    <div className="container" style={{ maxWidth: 1200 }}>
       <Link to="/services">← Back to Services</Link>
       <h2 className="page-title">{service.name}</h2>
 
       {loadError && <p className="error-box">Connection problem: {loadError}</p>}
       {actionError && <p className="error-box">{actionError}</p>}
+      {notice && <p className="notice-box">{notice}</p>}
 
       <section className="card">
         <ul className="details">
@@ -79,9 +125,14 @@ export default function ServiceDetails() {
       <section className="card">
         <div className="form-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
           <h3 style={{ margin: 0 }}>Instances <span className="muted small">(live, refreshes every 5 s)</span></h3>
-          <button className="btn" onClick={handleCheckNow} disabled={busy}>
-            {busy ? 'Checking...' : 'Check now'}
-          </button>
+          <div className="row-actions">
+            <button className="btn btn-secondary" onClick={handleRolling} disabled={anyBusy}>
+              {busyKey === 'service:restart' ? 'Restarting all...' : 'Rolling restart'}
+            </button>
+            <button className="btn" onClick={handleCheckNow} disabled={anyBusy}>
+              {busyKey === 'check' ? 'Checking...' : 'Check now'}
+            </button>
+          </div>
         </div>
 
         {instances.length === 0 ? (
@@ -90,31 +141,52 @@ export default function ServiceDetails() {
           <table className="table">
             <thead>
               <tr>
-                <th>Instance</th><th>Container</th><th>Status</th><th>CPU</th><th>Memory</th>
-                <th>Response</th><th>Fail streak</th><th>Restarts</th><th>Failures</th><th>Last check</th>
+                <th>Instance</th><th>Status</th><th>Traffic</th><th>CPU</th><th>Memory</th>
+                <th>Streak</th><th>Restarts</th><th>Failures</th><th>Last check</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {instances.map((i) => (
                 <tr key={i._id}>
                   <td>{i.instanceName}</td>
-                  <td><code>{i.containerId ? i.containerId.slice(0, 12) : '-'}</code></td>
                   <td><StatusBadge status={i.status} /></td>
+                  <td className={i.inTraffic === false ? 'bad-text' : 'ok-text'}>{i.inTraffic === false ? 'OUT' : 'IN'}</td>
                   <td>{i.cpuUsage}%</td>
                   <td>{i.memoryUsage}%</td>
-                  <td>{i.responseTimeMs != null ? `${i.responseTimeMs} ms` : '-'}</td>
                   <td>{i.consecutiveFailures}</td>
                   <td>{i.restartCount}</td>
                   <td>{i.failureCount}</td>
                   <td>{i.lastHealthCheck ? new Date(i.lastHealthCheck).toLocaleTimeString() : '-'}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="btn btn-small" disabled={anyBusy} onClick={() => handleRestart(i)}>
+                        {busyKey === `${i._id}:restart` ? 'Restarting...' : 'Restart'}
+                      </button>
+                      <button className="btn btn-small btn-danger" disabled={anyBusy} onClick={() => handleReplace(i)}>
+                        {busyKey === `${i._id}:replace` ? 'Replacing...' : 'Replace'}
+                      </button>
+                      <select value={simFor(i)} onChange={(e) => setSimType({ ...simType, [i._id]: e.target.value })}>
+                        {SIM_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                      <button className="btn btn-small btn-secondary" disabled={anyBusy} onClick={() => handleSimulate(i)}>
+                        Simulate
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <p className="muted small">
+          Simulate triggers a failure inside the demo app so you can watch CloudResQ react. Scale buttons arrive in Phase 13.
+          These actions are not protected by a login yet.
+        </p>
       </section>
+
       <AnalysisPanel serviceId={id} />
       <DecisionPanel serviceId={id} />
+
       <section className="card">
         <h3>Health check history <span className="muted small">(last 15)</span></h3>
         {checks.length === 0 ? (

@@ -87,7 +87,7 @@ function evaluateInstance(state, cfg = decisionConfig) {
   }
 
   // ---- RULE 8: healthy again but still out of traffic -> ADD_TO_TRAFFIC ----
-  if (!inTraffic && a.health === 'HEALTHY' && !availabilityDown && !types.includes('HIGH_ERROR_RATE')) {
+   if (!inTraffic && (a.health === 'HEALTHY' || a.health === 'RECOVERED') && !availabilityDown && !types.includes('HIGH_ERROR_RATE'))  {
     return make({
       action: 'ADD_TO_TRAFFIC', priority: 'MEDIUM', confidence: 0.9, rule: 'RULE_8_ADD_TO_TRAFFIC',
       reason: `${name} is passing health checks again, so it is added back to traffic.`,

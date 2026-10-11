@@ -21,6 +21,9 @@ const decisionSchema = new mongoose.Schema(
 
     // Phase 9 only proposes. Phase 10 sets EXECUTED or FAILED.
     status: { type: String, enum: ['PROPOSED', 'EXECUTING', 'EXECUTED', 'FAILED', 'SKIPPED'], default: 'PROPOSED' },
+    executedAt: { type: Date, default: null },
+    note: { type: String, default: null }, // what happened when it was executed, or why it was skipped
+    recoveryEventId: { type: mongoose.Schema.Types.ObjectId, ref: 'RecoveryEvent', default: null },
     decidedAt: { type: Date, default: Date.now },
   },
   { timestamps: true, collection: 'decisions' }

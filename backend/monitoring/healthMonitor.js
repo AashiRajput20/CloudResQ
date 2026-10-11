@@ -1,6 +1,6 @@
 // Health Monitor: checks every managed container on a schedule, stores the result,
 // and updates each Instance's status using the "N consecutive failures" rule.
-// After each cycle it hands its observations to the Failure Detector.
+// After each cycle: Failure Detector -> Decision Engine -> Recovery Controller.
 const config = require('../config');
 const dockerManager = require('../docker/dockerManager');
 const Service = require('../models/Service');
@@ -10,6 +10,7 @@ const { ensureService } = require('../services/serviceRegistry');
 const { evaluateHealthState } = require('./healthState');
 const failureDetector = require('./failureDetector');
 const decisionService = require('../services/decisionService');
+const recoveryController = require('../recovery/recoveryController');
 
 const cfg = config.monitor;
 
@@ -53,8 +54,6 @@ async function probe(c) {
 // Handles all containers that belong to one service.
 async function processGroup(label, list) {
   const service = await ensureService(label, list.length);
-  const existing = await Instance.find({ serviceId: service._id });
-  const previous = new Map(existing.map((i) => [i.instanceName, i]));
 
   const results = await Promise.all(list.map(probe));
   const now = new Date();
@@ -64,33 +63,50 @@ async function processGroup(label, list) {
 
   await Promise.all(
     list.map(async (c, idx) => {
+         if (recoveryController.wasRemoved(c.containerId)) return; // just replaced: do not recreate its record
       const r = results[idx];
-      const prev = previous.get(c.instanceName);
 
-      const next = evaluateHealthState({
-        previousFailures: prev?.consecutiveFailures || 0,
-        healthy: r.healthy,
-        containerRunning: c.state === 'running',
-        threshold: cfg.failureThreshold,
-      });
+      // Read the instance AFTER probing, so we see anything the Recovery Controller changed meanwhile.
+      const prev = await Instance.findOne({ serviceId: service._id, instanceName: c.instanceName });
+      const recovering = recoveryController.isBusy(service._id, c.instanceName);
+
+      let next;
+      if (recovering) {
+        // The Recovery Controller owns the status while it works: do not count failures.
+        next = { consecutiveFailures: prev?.consecutiveFailures || 0, status: prev?.status || 'RECOVERING' };
+      } else {
+        next = evaluateHealthState({
+          previousFailures: prev?.consecutiveFailures || 0,
+          healthy: r.healthy,
+          containerRunning: c.state === 'running',
+          threshold: cfg.failureThreshold,
+        });
+        // Show RECOVERED for a few seconds after a successful recovery, then HEALTHY.
+        const holdMs = config.recovery.recoveredDisplaySeconds * 1000;
+        if (next.status === 'HEALTHY' && prev?.status === 'RECOVERED' && prev.statusChangedAt && now - prev.statusChangedAt < holdMs) {
+          next = { consecutiveFailures: 0, status: 'RECOVERED' };
+        }
+      }
 
       const set = {
         containerId: c.containerId,
-        status: next.status,
-        consecutiveFailures: next.consecutiveFailures,
         cpuUsage: r.cpuPercent,
         memoryUsage: r.memoryPercent,
         responseTimeMs: r.responseTimeMs,
         lastError: r.error,
         lastHealthCheck: now,
       };
-      if (!prev || prev.status !== next.status) set.statusChangedAt = now;
-      // Remember when the current failure streak began (used for detection time).
-      if (next.consecutiveFailures === 0) set.firstFailureAt = null;
-      else if (next.consecutiveFailures === 1) set.firstFailureAt = now;
+      if (!recovering) {
+        set.status = next.status;
+        set.consecutiveFailures = next.consecutiveFailures;
+        if (!prev || prev.status !== next.status) set.statusChangedAt = now;
+        // Remember when the current failure streak began (used for detection time).
+        if (next.consecutiveFailures === 0) set.firstFailureAt = null;
+        else if (next.consecutiveFailures === 1) set.firstFailureAt = now;
 
-      if (prev && prev.status !== next.status) {
-        console.log(`[Monitor] ${c.instanceName}: ${prev.status} -> ${next.status} (${r.error || 'ok'})`);
+        if (prev && prev.status !== next.status) {
+          console.log(`[Monitor] ${c.instanceName}: ${prev.status} -> ${next.status} (${r.error || 'ok'})`);
+        }
       }
 
       const instance = await Instance.findOneAndUpdate(
@@ -134,19 +150,23 @@ async function processGroup(label, list) {
     console.warn(`[Detector] failed: ${err.message}`);
   }
 
-  const healthy = statuses.filter((s) => s === 'HEALTHY').length;
-  const serviceStatus = healthy === statuses.length ? 'HEALTHY' : healthy === 0 ? 'FAILED' : 'WARNING';
+  const healthy = statuses.filter((s) => s === 'HEALTHY' || s === 'RECOVERED').length;
+  const anyRecovering = statuses.includes('RECOVERING');
+  const serviceStatus = anyRecovering
+    ? 'RECOVERING'
+    : healthy === statuses.length ? 'HEALTHY' : healthy === 0 ? 'FAILED' : 'WARNING';
   await Service.updateOne(
     { _id: service._id },
     { currentReplicas: list.filter((c) => c.state === 'running').length, status: serviceStatus }
   );
 
-    // The Decision Engine must never break monitoring either.
+  // Decide, then execute. Neither may ever break monitoring.
   if (config.decision.enabled) {
     try {
-      await decisionService.run(service);
+      const decisions = await decisionService.run(service);
+      await recoveryController.handle(service, decisions);
     } catch (err) {
-      console.warn(`[Decision] failed: ${err.message}`);
+      console.warn(`[Decision/Recovery] failed: ${err.message}`);
     }
   }
 

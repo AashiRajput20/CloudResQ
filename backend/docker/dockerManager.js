@@ -224,7 +224,19 @@ async function getAppStatus(hostPort) {
     return null;
   }
 }
-
+// Sends a POST to the app's own /simulate/* endpoints (used by the dashboard's Simulate button).
+async function postToApp(hostPort, path, body = {}) {
+  if (!hostPort) throw new Error('Instance has no published port');
+  const res = await fetch(`http://${cfg.healthHost}:${hostPort}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(cfg.healthTimeoutMs),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `App returned HTTP ${res.status}`);
+  return data;
+}
 module.exports = {
   LABEL,
   ping,
@@ -238,4 +250,5 @@ module.exports = {
   startContainer,
   removeContainer,
   createContainer,
+  postToApp,
 };

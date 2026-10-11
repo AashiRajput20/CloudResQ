@@ -35,7 +35,7 @@ export default function DecisionPanel({ serviceId }) {
   usePolling(load, 5000);
 
   // Show the full explanation only for instances where something is happening.
-  const interesting = live.filter((d) => d.action !== 'NO_ACTION' || d.trafficAction || d.blockedBy || d.inputs.health === 'WARNING');
+   const interesting = live.filter((d) => d.action !== 'NO_ACTION' || d.trafficAction || d.blockedBy || ['WARNING', 'RECOVERING'].includes(d.inputs.health));
 
   return (
     <section className="card">
@@ -105,15 +105,18 @@ export default function DecisionPanel({ serviceId }) {
                 </td>
                 <td><StatusBadge status={d.priority} /></td>
                 <td>{d.confidence}</td>
-                <td className="small">{d.reason}</td>
+                               <td className="small">
+                  {d.reason}
+                  {d.note && <div className="muted">Result: {d.note}</div>}
+                </td>
                 <td><StatusBadge status={d.status} /></td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
-      <p className="muted small">
-        Phase 9 proposes decisions only (status PROPOSED). The Recovery Controller in Phase 10 executes them.
+            <p className="muted small">
+        The Recovery Controller executes each decision automatically. The log status shows EXECUTED, FAILED or SKIPPED (scaling is skipped until Phase 13).
       </p>
     </section>
   );

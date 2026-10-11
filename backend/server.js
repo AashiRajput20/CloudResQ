@@ -6,11 +6,13 @@ const healthRoutes = require('./routes/healthRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const dockerRoutes = require('./routes/dockerRoutes');
 const monitorRoutes = require('./routes/monitorRoutes');
-const healthMonitor = require('./monitoring/healthMonitor');
 const failureRoutes = require('./routes/failureRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
 const instanceRoutes = require('./routes/instanceRoutes');
 const decisionRoutes = require('./routes/decisionRoutes');
+const recoveryRoutes = require('./routes/recoveryRoutes');
+const healthMonitor = require('./monitoring/healthMonitor');
+const recoveryController = require('./recovery/recoveryController');
 
 const app = express();
 
@@ -27,6 +29,7 @@ app.use('/api/failures', failureRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/instances', instanceRoutes);
 app.use('/api/decisions', decisionRoutes);
+app.use('/api/recovery-events', recoveryRoutes);
 
 // 404 handler for unknown routes
 app.use((req, res) => {
@@ -52,6 +55,8 @@ async function start() {
   app.listen(config.port, () => {
     console.log(`[CloudResQ] Backend running on http://localhost:${config.port}`);
   });
+
+  await recoveryController.init().catch((err) => console.warn(`[Recovery] init failed: ${err.message}`));
 
   // The monitor never crashes the backend: errors are caught inside its loop.
   if (config.monitor.enabled) healthMonitor.start();
