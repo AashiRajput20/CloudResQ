@@ -13,6 +13,7 @@ const decisionService = require('../services/decisionService');
 const { slugify } = require('../services/serviceRegistry');
 const { nextSlot } = require('./instanceNaming');
 const loadBalancer = require('../loadbalancer/trafficManager');
+const eventBus = require('../events/eventBus');
 
 const cfg = config.recovery;
 const busy = new Set(); // "serviceId:instanceName" of instances being recovered right now
@@ -53,6 +54,10 @@ async function finishEvent(event, status, extra = {}) {
   event.duration = Math.round((event.completedAt - event.startedAt) / 100) / 10; // seconds, 1 decimal
   Object.assign(event, extra);
   await event.save();
+    eventBus.publish('recovery.completed', {
+    instance: event.instanceName, serviceId: String(event.serviceId), action: event.action,
+    status: event.status, duration: event.duration, error: event.error || null,
+  });
   return event;
 }
 
@@ -209,6 +214,10 @@ async function startRecovery(action, ctx) {
   }
 
   console.log(`[Recovery] ${instance.instanceName}: ${action} started (${ctx.source.toLowerCase()})`);
+    eventBus.publish('recovery.request', {
+    instance: instance.instanceName, serviceId: String(service._id), action,
+    source: ctx.source, reason: ctx.reason,
+  });
   const run = action === 'RESTART' ? runRestart : runReplace;
   const done = run(ctx, event)
     .catch((err) => console.error(`[Recovery] ${instance.instanceName}: unexpected error - ${err.message}`))

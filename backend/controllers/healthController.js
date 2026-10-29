@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const dockerManager = require('../docker/dockerManager');
 const healthMonitor = require('../monitoring/healthMonitor');
+const eventBus = require('../events/eventBus');
 
 const DB_STATES = {
   0: 'disconnected',
@@ -12,6 +13,7 @@ const DB_STATES = {
 exports.getHealth = async (req, res) => {
   const dbState = DB_STATES[mongoose.connection.readyState] || 'unknown';
   const dockerUp = await dockerManager.ping();
+  const events = eventBus.getStatus();
 
   res.status(200).json({
     status: 'ok',
@@ -19,6 +21,7 @@ exports.getHealth = async (req, res) => {
     mongodb: dbState,
     docker: dockerUp ? 'connected' : 'unreachable',
     monitor: healthMonitor.getStatus().running ? 'running' : 'stopped',
+    redis: !events.enabled ? 'disabled' : events.connected ? 'connected' : 'unreachable',
     uptimeSeconds: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   });

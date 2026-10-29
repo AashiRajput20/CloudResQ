@@ -32,6 +32,8 @@ export const restartService = async (id) => (await api.post(`/services/${id}/res
 export const getRecoveryEvents = async (params = {}) => (await api.get('/recovery-events', { params })).data;
 export const getLoadBalancer = async () => (await api.get('/loadbalancer')).data;
 export const syncLoadBalancer = async () => (await api.post('/loadbalancer/sync', null, { timeout: 20000 })).data;
+export const getEvents = async () => (await api.get('/events')).data;
+export const sendTestEvent = async () => (await api.post('/events/test')).data;
 export const errorMessage = (err) => err.response?.data?.error || err.message;
 
 export default api;

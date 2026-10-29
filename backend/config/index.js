@@ -68,5 +68,9 @@ module.exports = {
     upstreamPath: process.env.NGINX_UPSTREAM_PATH || '/etc/nginx/conf.d/upstream.conf', // path INSIDE the container
     hostPort: parseInt(process.env.NGINX_HOST_PORT, 10) || 8080, // only used to show the URL on the dashboard
   },
-
+  redis: {
+    enabled: process.env.REDIS_ENABLED !== 'false',
+    url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+    channel: process.env.REDIS_CHANNEL || 'cloudresq.events',
+  },
 };

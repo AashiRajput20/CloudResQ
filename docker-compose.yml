@@ -39,6 +39,19 @@ services:
       - cloudresq-net
     mem_limit: 64m
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: cloudresq-redis
+    # Pub/sub needs no disk persistence; cap memory for the 8 GB laptop.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "32mb"]
+    ports:
+      - "6379:6379"
+    networks:
+      - cloudresq-net
+    mem_limit: 64m
+    restart: unless-stopped
+    
   app-1:
     <<: *demo-app
     container_name: cloudresq-app-1
@@ -51,7 +64,6 @@ services:
       cloudresq.managed: "true"
       cloudresq.service: "demo-service"
       cloudresq.instance: "app-1"
-
   app-2:
     <<: *demo-app
     container_name: cloudresq-app-2

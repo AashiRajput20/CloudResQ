@@ -8,6 +8,7 @@ const config = require('../config');
 const Failure = require('../models/Failure');
 const Instance = require('../models/Instance');
 const SampleWindow = require('./sampleWindow');
+const eventBus = require('../events/eventBus');
 
 const cfg = config.detection;
 const AVAILABILITY = ['CONTAINER_DOWN', 'HEALTH_CHECK_FAILED'];
@@ -95,6 +96,10 @@ async function open(service, o, active, fields) {
   });
   active.push(doc);
   console.log(`[Detector] ${doc.instanceName}: ${doc.failureType} detected (${doc.severity}) - ${doc.message}`);
+    eventBus.publish('health.failure', {
+    instance: doc.instanceName, serviceId: String(doc.serviceId),
+    failureType: doc.failureType, severity: doc.severity, message: doc.message,
+  });
   return doc;
 }
 
@@ -104,6 +109,10 @@ async function close(failure, resolution) {
   failure.resolution = resolution;
   await failure.save();
   console.log(`[Detector] ${failure.instanceName}: ${failure.failureType} resolved (${resolution})`);
+    eventBus.publish('health.recovered', {
+    instance: failure.instanceName, serviceId: String(failure.serviceId),
+    failureType: failure.failureType, resolution,
+  });
 }
 
 function recentAvailabilityCount(serviceId, instanceName) {

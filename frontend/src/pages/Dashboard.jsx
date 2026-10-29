@@ -1,6 +1,7 @@
 import useBackendHealth from '../hooks/useBackendHealth';
 import LastDecisionCard from '../components/LastDecisionCard';
 import LoadBalancerPanel from '../components/LoadBalancerPanel';
+import EventStreamPanel from '../components/EventStreamPanel';
 
 export default function Dashboard() {
   const { health, error, loading } = useBackendHealth(5000);
@@ -41,6 +42,10 @@ export default function Dashboard() {
           </li>
            <li>
             <span>Health Monitor</span>
+            <li>
+              <span>Redis</span>
+              <strong>{backendUp ? (health.redis || 'unknown').toUpperCase() : 'UNKNOWN'}</strong>
+            </li>
             <strong>{backendUp ? (health.monitor === 'running' ? 'RUNNING' : 'STOPPED') : 'UNKNOWN'}</strong>
           </li>
           <li>
@@ -55,6 +60,7 @@ export default function Dashboard() {
       </section>
       <LastDecisionCard />
             <LoadBalancerPanel />
+            <EventStreamPanel />
     </div>
   );
 }

@@ -14,6 +14,8 @@ const recoveryRoutes = require('./routes/recoveryRoutes');
 const healthMonitor = require('./monitoring/healthMonitor');
 const recoveryController = require('./recovery/recoveryController');
 const loadBalancerRoutes = require('./routes/loadBalancerRoutes');
+const eventRoutes = require('./routes/eventRoutes');
+const eventBus = require('./events/eventBus');
 
 const app = express();
 
@@ -32,6 +34,8 @@ app.use('/api/instances', instanceRoutes);
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/recovery-events', recoveryRoutes);
 app.use('/api/loadbalancer', loadBalancerRoutes);
+app.use('/api/events', eventRoutes);
+
 
 // 404 handler for unknown routes
 app.use((req, res) => {
@@ -59,6 +63,7 @@ async function start() {
   });
 
   await recoveryController.init().catch((err) => console.warn(`[Recovery] init failed: ${err.message}`));
+  eventBus.start(); // optional: the backend works even if Redis is down
 
   // The monitor never crashes the backend: errors are caught inside its loop.
   if (config.monitor.enabled) healthMonitor.start();
