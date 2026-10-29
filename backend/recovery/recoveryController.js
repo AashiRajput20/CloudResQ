@@ -1,8 +1,9 @@
 // Recovery Controller: EXECUTES the Decision Engine's decisions and VERIFIES the result.
 //   RESTART             remove from traffic -> restart -> wait until healthy -> RECOVERED
 //   REPLACE             create new instance -> wait until healthy -> remove the old one
-//   REMOVE/ADD_TO_TRAFFIC  update the traffic pool (Nginx applies it in Phase 11)
-//   ALERT               logged;  SCALE_OUT / SCALE_IN are skipped until Phase 13
+//   REMOVE/ADD_TO_TRAFFIC  update the traffic pool (the Load Balancer Manager applies it to Nginx)
+//   SCALE_OUT / SCALE_IN   handed to the Scaling Controller
+//   ALERT               logged
 // Every action is recorded in the recoveryEvents collection, with its duration and result.
 const config = require('../config');
 const dockerManager = require('../docker/dockerManager');
@@ -14,27 +15,11 @@ const { slugify } = require('../services/serviceRegistry');
 const { nextSlot } = require('./instanceNaming');
 const loadBalancer = require('../loadbalancer/trafficManager');
 const eventBus = require('../events/eventBus');
+const scaling = require('../scaling/scalingController');
+const shared = require('./shared');
 
 const cfg = config.recovery;
-const busy = new Set(); // "serviceId:instanceName" of instances being recovered right now
-const removedContainers = new Map(); // containerId -> ms when we removed it (so the monitor ignores it)
-
-function markRemoved(containerId) {
-  removedContainers.set(containerId, Date.now());
-}
-
-// True for 60 s after CloudResQ removed the container, which covers any monitor cycle still in flight.
-function wasRemoved(containerId) {
-  const t = removedContainers.get(containerId);
-  if (!t) return false;
-  if (Date.now() - t > 60000) {
-    removedContainers.delete(containerId);
-    return false;
-  }
-  return true;
-}
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const lockKey = (serviceId, instanceName) => `${serviceId}:${instanceName}`;
+const { lockKey } = shared;
 
 class RecoveryBusyError extends Error {
   constructor(name) {
@@ -44,7 +29,7 @@ class RecoveryBusyError extends Error {
 }
 
 // The Health Monitor asks this so it does not count failures during a recovery.
-const isBusy = (serviceId, instanceName) => busy.has(lockKey(serviceId, instanceName));
+const isBusy = (serviceId, instanceName) => shared.isLocked(lockKey(serviceId, instanceName));
 
 // ---------- helpers ----------
 
@@ -54,34 +39,15 @@ async function finishEvent(event, status, extra = {}) {
   event.duration = Math.round((event.completedAt - event.startedAt) / 100) / 10; // seconds, 1 decimal
   Object.assign(event, extra);
   await event.save();
-    eventBus.publish('recovery.completed', {
+  eventBus.publish('recovery.completed', {
     instance: event.instanceName, serviceId: String(event.serviceId), action: event.action,
     status: event.status, duration: event.duration, error: event.error || null,
   });
   return event;
 }
 
-async function closeDecision(ctx, status, note, event) {
-  if (!ctx.decisionId) return;
-  await Decision.updateOne(
-    { _id: ctx.decisionId },
-    { $set: { status, note, executedAt: new Date(), recoveryEventId: event?._id || null } }
-  ).catch(() => {});
-}
-
-// Verification: /health must pass N times in a row before we call it recovered.
-async function verifyHealthy(ref) {
-  const started = Date.now();
-  let streak = 0;
-  let last = null;
-  while (Date.now() - started < cfg.verifyTimeoutMs) {
-    last = await dockerManager.getContainerHealth(ref).catch((e) => ({ healthy: false, error: e.message }));
-    streak = last.healthy ? streak + 1 : 0;
-    if (streak >= cfg.verifySuccesses) return { ok: true };
-    await sleep(cfg.verifyIntervalMs);
-  }
-  return { ok: false, error: last?.error, waitedSec: Math.round((Date.now() - started) / 1000) };
-}
+const closeDecision = (ctx, status, note, event) =>
+  shared.closeDecision(ctx.decisionId, status, note, event?._id || null);
 
 // After a failed recovery, put the instance back into a failing state so the engine decides again.
 async function markStillFailing(instance) {
@@ -92,12 +58,12 @@ async function markStillFailing(instance) {
   );
 }
 
-// Traffic pool change (REMOVE_FROM_TRAFFIC / ADD_TO_TRAFFIC). Phase 11 makes Nginx follow this flag.
+// Traffic pool change (REMOVE_FROM_TRAFFIC / ADD_TO_TRAFFIC). Nginx follows this flag.
 async function setTraffic(ctx, inTraffic) {
   const action = inTraffic ? 'ADD_TO_TRAFFIC' : 'REMOVE_FROM_TRAFFIC';
   const now = new Date();
   await Instance.updateOne({ _id: ctx.instance._id }, { $set: { inTraffic } });
-    loadBalancer.sync(); // not awaited: Nginx follows the traffic pool within a moment
+  loadBalancer.sync(); // not awaited: Nginx follows the traffic pool within a moment
   const event = await RecoveryEvent.create({
     serviceId: ctx.service._id, instanceId: ctx.instance._id, instanceName: ctx.instance.instanceName,
     action, reason: ctx.reason, trigger: ctx.trigger, priority: ctx.priority, confidence: ctx.confidence,
@@ -114,7 +80,7 @@ async function runRestart(ctx, event) {
   const { instance } = ctx;
   try {
     await dockerManager.restartContainer(instance.containerId);
-    const v = await verifyHealthy(instance.containerId);
+    const v = await shared.verifyHealthy(instance.containerId);
     if (!v.ok) throw new Error(`Still unhealthy ${v.waitedSec} s after the restart (${v.error || 'no response'})`);
 
     await finishEvent(event, 'SUCCESS');
@@ -151,11 +117,11 @@ async function runReplace(ctx, event) {
     created = await dockerManager.createContainer({
       serviceLabel: label, instanceName: slot.instanceName, hostPort: slot.hostPort,
     });
-    const v = await verifyHealthy(created.containerId);
+    const v = await shared.verifyHealthy(created.containerId);
     if (!v.ok) throw new Error(`New instance ${slot.instanceName} was not healthy after ${v.waitedSec} s (${v.error || 'no response'})`);
 
     // The replacement works, so the old instance can go now (capacity never dropped).
-       markRemoved(instance.containerId); // BEFORE removing, so an in-flight monitor cycle skips it
+    shared.markRemoved(instance.containerId); // BEFORE removing, so an in-flight monitor cycle skips it
     await dockerManager.removeContainer(instance.containerId);
     await Instance.deleteOne({ _id: instance._id });
     await finishEvent(event, 'SUCCESS');
@@ -191,8 +157,7 @@ async function startRecovery(action, ctx) {
     throw err;
   }
   const key = lockKey(service._id, instance.instanceName);
-  if (busy.has(key)) throw new RecoveryBusyError(instance.instanceName);
-  busy.add(key);
+  if (!shared.tryLock(key)) throw new RecoveryBusyError(instance.instanceName);
 
   let event;
   try {
@@ -206,23 +171,23 @@ async function startRecovery(action, ctx) {
     const update = { $set: { status: 'RECOVERING', statusChangedAt: new Date() } };
     if (action === 'RESTART') update.$inc = { restartCount: 1 };
     await Instance.updateOne({ _id: instance._id }, update);
-        loadBalancer.sync(); // a RECOVERING instance leaves the pool
+    loadBalancer.sync(); // a RECOVERING instance leaves the pool
     if (ctx.decisionId) await Decision.updateOne({ _id: ctx.decisionId }, { $set: { status: 'EXECUTING' } });
   } catch (err) {
-    busy.delete(key);
+    shared.unlock(key);
     throw err;
   }
 
   console.log(`[Recovery] ${instance.instanceName}: ${action} started (${ctx.source.toLowerCase()})`);
-    eventBus.publish('recovery.request', {
+  eventBus.publish('recovery.request', {
     instance: instance.instanceName, serviceId: String(service._id), action,
     source: ctx.source, reason: ctx.reason,
   });
   const run = action === 'RESTART' ? runRestart : runReplace;
   const done = run(ctx, event)
     .catch((err) => console.error(`[Recovery] ${instance.instanceName}: unexpected error - ${err.message}`))
-        .finally(() => {
-      busy.delete(key); // released only AFTER the final status was written
+    .finally(() => {
+      shared.unlock(key); // released only AFTER the final status was written
       loadBalancer.sync(); // recovered instances rejoin, removed ones leave
     });
   return { event, done };
@@ -236,7 +201,7 @@ const replaceInstance = (ctx) => startRecovery('REPLACE', withDefaults(ctx));
 async function dispatch(service, d) {
   const instance = await Instance.findById(d.instanceId);
   if (!instance) {
-    await Decision.updateOne({ _id: d.decisionId }, { $set: { status: 'SKIPPED', note: 'Instance no longer exists', executedAt: new Date() } });
+    await shared.closeDecision(d.decisionId, 'SKIPPED', 'Instance no longer exists');
     return;
   }
   const ctx = withDefaults({
@@ -272,7 +237,7 @@ async function dispatch(service, d) {
 
     case 'SCALE_OUT':
     case 'SCALE_IN':
-      await closeDecision(ctx, 'SKIPPED', 'Scaling is executed from Phase 13');
+      await scaling.handleDecision(ctx, d); // Phase 13: the Scaling Controller does the work
       break;
 
     default:
@@ -306,6 +271,7 @@ async function init() {
   await Decision.updateMany({ status: 'EXECUTING' }, { $set: { status: 'FAILED', note: 'Backend stopped during execution' } });
   if (events.modifiedCount) console.log(`[Recovery] closed ${events.modifiedCount} unfinished recovery event(s) from a previous run`);
   console.log(`[Recovery] auto-recovery is ${cfg.autoEnabled ? 'ON' : 'OFF (decisions are only proposed)'}`);
+  await scaling.init();
 }
 
-module.exports = { init, handle, isBusy, wasRemoved, restartInstance, replaceInstance };
+module.exports = { init, handle, isBusy, wasRemoved: shared.wasRemoved, restartInstance, replaceInstance };

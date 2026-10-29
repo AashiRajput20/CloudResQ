@@ -34,6 +34,10 @@ export const getLoadBalancer = async () => (await api.get('/loadbalancer')).data
 export const syncLoadBalancer = async () => (await api.post('/loadbalancer/sync', null, { timeout: 20000 })).data;
 export const getEvents = async () => (await api.get('/events')).data;
 export const sendTestEvent = async () => (await api.post('/events/test')).data;
+export const getMetrics = async (params = {}) => (await api.get('/metrics', { params })).data;
+export const getScalingEvents = async (params = {}) => (await api.get('/scaling-events', { params })).data;
+export const scaleService = async (id, direction) =>
+  (await api.post(`/services/${id}/scale`, { direction }, { timeout: 60000 })).data;
 export const errorMessage = (err) => err.response?.data?.error || err.message;
 
 export default api;

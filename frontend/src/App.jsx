@@ -6,6 +6,7 @@ import ServiceDetails from './pages/ServiceDetails';
 import Instances from './pages/Instances';
 import FailureHistory from './pages/FailureHistory';
 import RecoveryHistory from './pages/RecoveryHistory';
+import ScalingHistory from './pages/ScalingHistory';
 import ComingSoon from './pages/ComingSoon';
 
 export default function App() {
@@ -19,7 +20,7 @@ export default function App() {
           <Route path="/instances" element={<Instances />} />
           <Route path="/failure-history" element={<FailureHistory />} />
           <Route path="/recovery-history" element={<RecoveryHistory />} />
-          <Route path="/scaling-history" element={<ComingSoon title="Scaling History" phase="Phase 13" />} />
+          <Route path="/scaling-history" element={<ScalingHistory />} />
           <Route path="/analytics" element={<ComingSoon title="Analytics" phase="Phase 14" />} />
           <Route path="/settings" element={<ComingSoon title="System Settings" phase="Phase 14" />} />
           <Route path="*" element={<ComingSoon title="Page Not Found" phase="never :)" />} />

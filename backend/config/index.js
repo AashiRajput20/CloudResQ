@@ -73,4 +73,9 @@ module.exports = {
     url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
     channel: process.env.REDIS_CHANNEL || 'cloudresq.events',
   },
+    scaling: {
+    autoEnabled: process.env.AUTO_SCALING !== 'false', // false = scale decisions are only logged
+    cooldownSeconds: parseInt(process.env.SCALING_COOLDOWN_SECONDS, 10) || 60,
+    drainSeconds: parseInt(process.env.SCALE_IN_DRAIN_SECONDS, 10) || 2,
+  },
 };

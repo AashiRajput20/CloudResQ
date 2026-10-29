@@ -2,12 +2,13 @@ import { useCallback, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   getService, getServiceInstances, getHealthChecks, syncFromDocker,
-  restartInstance, replaceInstance, simulateInstance, restartService, errorMessage,
+  restartInstance, replaceInstance, simulateInstance, restartService, scaleService, errorMessage,
 } from '../services/api';
 import usePolling from '../hooks/usePolling';
 import StatusBadge from '../components/StatusBadge';
 import AnalysisPanel from '../components/AnalysisPanel';
 import DecisionPanel from '../components/DecisionPanel';
+import MetricsChart from '../components/MetricsChart';
 
 const SIM_TYPES = [
   ['health', 'Health failure (503)'],
@@ -90,6 +91,12 @@ export default function ServiceDetails() {
       `Rolling restart finished: ${r.results.map((x) => `${x.instance} ${x.status}`).join(', ')}`);
   };
 
+  const handleScale = (direction) =>
+    run(`scale:${direction}`, () => scaleService(id, direction), (e) =>
+      e.status === 'SUCCESS'
+        ? `${direction === 'out' ? 'Scaled out' : 'Scaled in'}: ${e.previousReplicas} to ${e.newReplicas} replicas in ${e.duration} s (${e.instanceName})`
+        : `Scaling failed (${e.error})`);
+
   const handleCheckNow = () => run('check', () => syncFromDocker(), () => 'Checked all instances');
 
   if (loadError && !service) {
@@ -122,10 +129,18 @@ export default function ServiceDetails() {
         </ul>
       </section>
 
+      <MetricsChart serviceId={id} />
+
       <section className="card">
         <div className="form-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
           <h3 style={{ margin: 0 }}>Instances <span className="muted small">(live, refreshes every 5 s)</span></h3>
           <div className="row-actions">
+            <button className="btn btn-secondary" onClick={() => handleScale('out')} disabled={anyBusy}>
+              {busyKey === 'scale:out' ? 'Scaling out...' : 'Scale out'}
+            </button>
+            <button className="btn btn-secondary" onClick={() => handleScale('in')} disabled={anyBusy}>
+              {busyKey === 'scale:in' ? 'Scaling in...' : 'Scale in'}
+            </button>
             <button className="btn btn-secondary" onClick={handleRolling} disabled={anyBusy}>
               {busyKey === 'service:restart' ? 'Restarting all...' : 'Rolling restart'}
             </button>
@@ -179,8 +194,8 @@ export default function ServiceDetails() {
           </table>
         )}
         <p className="muted small">
-          Simulate triggers a failure inside the demo app so you can watch CloudResQ react. Scale buttons arrive in Phase 13.
-          These actions are not protected by a login yet.
+          Scale out and Scale in change the replica count by one, within the service's min and max. CloudResQ also does this by itself
+          when the Decision Engine decides to. These actions are not protected by a login yet.
         </p>
       </section>
 

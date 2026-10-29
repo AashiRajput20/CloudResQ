@@ -12,6 +12,7 @@ const failureDetector = require('./failureDetector');
 const decisionService = require('../services/decisionService');
 const recoveryController = require('../recovery/recoveryController');
 const loadBalancer = require('../loadbalancer/trafficManager');
+const scalingController = require('../scaling/scalingController');
 
 const cfg = config.monitor;
 
@@ -153,9 +154,11 @@ async function processGroup(label, list) {
 
   const healthy = statuses.filter((s) => s === 'HEALTHY' || s === 'RECOVERED').length;
   const anyRecovering = statuses.includes('RECOVERING');
-  const serviceStatus = anyRecovering
-    ? 'RECOVERING'
-    : healthy === statuses.length ? 'HEALTHY' : healthy === 0 ? 'FAILED' : 'WARNING';
+    const serviceStatus = scalingController.isScaling(service._id)
+    ? 'SCALING'
+    : anyRecovering
+      ? 'RECOVERING'
+      : healthy === statuses.length ? 'HEALTHY' : healthy === 0 ? 'FAILED' : 'WARNING'; 
   await Service.updateOne(
     { _id: service._id },
     { currentReplicas: list.filter((c) => c.state === 'running').length, status: serviceStatus }
