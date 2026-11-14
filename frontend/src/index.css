@@ -164,3 +164,18 @@ h4 { margin-top: 20px; }
 }
 
 .pool-list { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.stat-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.stat-value { font-size: 1.9rem; font-weight: 700; line-height: 1.15; }
+.stat-label { color: #94a3b8; font-size: 0.85rem; margin-top: 4px; }
+.stat-hint { color: #64748b; font-size: 0.75rem; margin-top: 6px; }

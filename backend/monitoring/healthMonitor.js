@@ -114,7 +114,7 @@ async function processGroup(label, list) {
       const instance = await Instance.findOneAndUpdate(
         { serviceId: service._id, instanceName: c.instanceName },
         { $set: set },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
 
       checks.push({

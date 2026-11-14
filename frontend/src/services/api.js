@@ -6,38 +6,55 @@ const api = axios.create({
   timeout: 5000,
 });
 
+// ---- backend health ----
 export const getBackendHealth = async () => (await api.get('/health')).data;
 
+// ---- services and instances ----
 export const getServices = async () => (await api.get('/services')).data;
 export const getService = async (id) => (await api.get(`/services/${id}`)).data;
 export const getServiceInstances = async (id) => (await api.get(`/services/${id}/instances`)).data;
 export const createService = async (payload) => (await api.post('/services', payload)).data;
 export const deleteService = async (id) => (await api.delete(`/services/${id}`)).data;
+
+// ---- docker and monitoring ----
 export const getDockerContainers = async () => (await api.get('/docker/containers')).data;
-// Sync inspects every container (stats take a moment), so it gets a longer timeout.
+// "Check now" runs one monitor cycle, so it gets a longer timeout.
 export const syncFromDocker = async () => (await api.post('/docker/sync', null, { timeout: 15000 })).data;
 export const getHealthChecks = async (params = {}) => (await api.get('/health-checks', { params })).data;
 export const getMonitorStatus = async () => (await api.get('/monitor/status')).data;
 
-// Pulls the readable message out of an axios error.
+// ---- failures, analysis, decisions ----
 export const getFailures = async (params = {}) => (await api.get('/failures', { params })).data;
 export const getAnalysis = async (params = {}) => (await api.get('/analysis', { params })).data;
 export const getDecisions = async (params = {}) => (await api.get('/decisions', { params })).data;
 export const getLiveDecisions = async (params = {}) => (await api.get('/decisions/live', { params })).data;
-// Actions can take a while (restart + verification), so they get longer timeouts.
+
+// ---- recovery actions (restart + verification can take a while) ----
 export const restartInstance = async (id) => (await api.post(`/instances/${id}/restart`, null, { timeout: 60000 })).data;
 export const replaceInstance = async (id) => (await api.post(`/instances/${id}/replace`, null, { timeout: 90000 })).data;
 export const simulateInstance = async (id, type) => (await api.post(`/instances/${id}/simulate`, { type })).data;
 export const restartService = async (id) => (await api.post(`/services/${id}/restart`, null, { timeout: 180000 })).data;
 export const getRecoveryEvents = async (params = {}) => (await api.get('/recovery-events', { params })).data;
+
+// ---- load balancer and events ----
 export const getLoadBalancer = async () => (await api.get('/loadbalancer')).data;
 export const syncLoadBalancer = async () => (await api.post('/loadbalancer/sync', null, { timeout: 20000 })).data;
 export const getEvents = async () => (await api.get('/events')).data;
 export const sendTestEvent = async () => (await api.post('/events/test')).data;
+
+// ---- scaling and metrics ----
 export const getMetrics = async (params = {}) => (await api.get('/metrics', { params })).data;
 export const getScalingEvents = async (params = {}) => (await api.get('/scaling-events', { params })).data;
 export const scaleService = async (id, direction) =>
   (await api.post(`/services/${id}/scale`, { direction }, { timeout: 60000 })).data;
+
+// ---- analytics and settings ----
+export const getAnalytics = async (params = {}) => (await api.get('/analytics', { params })).data;
+export const getSettings = async () => (await api.get('/settings')).data;
+export const updateServiceLimits = async (id, minimumReplicas, maximumReplicas) =>
+  (await api.patch(`/settings/services/${id}/limits`, { minimumReplicas, maximumReplicas })).data;
+
+// Pulls the readable message out of an axios error.
 export const errorMessage = (err) => err.response?.data?.error || err.message;
 
 export default api;

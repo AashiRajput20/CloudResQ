@@ -17,6 +17,8 @@ const loadBalancerRoutes = require('./routes/loadBalancerRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const eventBus = require('./events/eventBus');
 const scalingRoutes = require('./routes/scalingRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 const app = express();
 
@@ -37,6 +39,8 @@ app.use('/api/recovery-events', recoveryRoutes);
 app.use('/api/loadbalancer', loadBalancerRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api', scalingRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/settings', settingsRoutes);
 
 
 // 404 handler for unknown routes
