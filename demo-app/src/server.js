@@ -1,5 +1,6 @@
 const express = require('express');
 const metrics = require('./metrics');
+const prom = require('./promMetrics');
 const simulation = require('./simulation');
 
 const INSTANCE_ID = process.env.INSTANCE_ID || 'app-1';
@@ -9,19 +10,22 @@ const app = express();
 app.use(express.json());
 
 // Measure every request: response time and status code.
+// The /metrics scrape itself is not counted, so Prometheus does not look like user traffic.
 app.use((req, res, next) => {
+  if (req.path === '/metrics') return next();
   const start = process.hrtime.bigint();
   res.on('finish', () => {
     const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
     metrics.recordRequest(durationMs, res.statusCode);
+    prom.observeRequest(req, res, durationMs / 1000);
   });
   next();
 });
 
-// Simulated slowness: delays normal requests (never the /simulate/* controls).
+// Simulated slowness: delays normal requests (never the /simulate/* controls or /metrics).
 app.use((req, res, next) => {
   const ms = simulation.state.latencyMs;
-  if (!ms || req.path.startsWith('/simulate')) return next();
+  if (!ms || req.path.startsWith('/simulate') || req.path === '/metrics') return next();
   setTimeout(next, ms);
 });
 
@@ -30,10 +34,10 @@ const now = () => new Date().toISOString();
 // ---------- Normal endpoints ----------
 
 app.get('/', (req, res) => {
-  res.json({ message: `Hello from CloudResQ demo app`, service: INSTANCE_ID, timestamp: now() });
+  res.json({ message: 'Hello from CloudResQ demo app', service: INSTANCE_ID, timestamp: now() });
 });
 
-// Health endpoint: this is what the CloudResQ Health Monitor will call every 5 seconds.
+// Health endpoint: this is what the CloudResQ Health Monitor calls every 5 seconds.
 app.get('/health', (req, res) => {
   if (simulation.state.failMode) {
     return res.status(503).json({
@@ -55,6 +59,12 @@ app.get('/api/status', (req, res) => {
     simulation: simulation.status(),
     ...metrics.snapshot(),
   });
+});
+
+// Prometheus scrapes this endpoint (the targets come from CloudResQ's service discovery).
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', prom.register.contentType);
+  res.end(await prom.register.metrics());
 });
 
 // ---------- Failure simulation ----------

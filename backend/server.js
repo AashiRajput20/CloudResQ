@@ -19,12 +19,15 @@ const eventBus = require('./events/eventBus');
 const scalingRoutes = require('./routes/scalingRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const metrics = require('./metrics');
+const prometheusRoutes = require('./routes/prometheusRoutes');
 
 const app = express();
 
 // Middleware
 app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
+app.use(metrics.apiMiddleware); // counts the backend's own API requests for Prometheus
 
 // Routes
 app.use('/api/health', healthRoutes);
@@ -41,6 +44,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api', scalingRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use(prometheusRoutes);
 
 
 // 404 handler for unknown routes

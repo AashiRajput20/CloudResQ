@@ -1,9 +1,12 @@
 // Event bus: publishes CloudResQ events to Redis and listens to them.
 // Redis is OPTIONAL: publish() never throws, and when Redis is down events are only counted as "dropped".
 const config = require('../config');
+const { EventEmitter } = require('events');
 
 const cfg = config.redis;
 const MAX_RECENT = 50;
+
+const local = new EventEmitter(); // in-process listeners (the Prometheus metrics use this); works even without Redis
 
 const state = {
   pub: null,
@@ -76,6 +79,7 @@ function start() {
 // Fire and forget. Returns true if the event was handed to Redis, false if it was dropped.
 function publish(event, payload) {
   try {
+        local.emit(event, buildEnvelope(event, payload)); // in-process first: independent of Redis
     if (!cfg.enabled) return false;
     if (!state.pub || state.pub.status !== 'ready') {
       state.dropped += 1;
@@ -113,4 +117,4 @@ function getStatus() {
   };
 }
 
-module.exports = { start, stop, publish, getStatus, buildEnvelope, rememberEvent, MAX_RECENT };
+module.exports = { start, stop, publish, getStatus, buildEnvelope, rememberEvent, MAX_RECENT, local };

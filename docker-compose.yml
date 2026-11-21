@@ -51,7 +51,53 @@ services:
       - cloudresq-net
     mem_limit: 64m
     restart: unless-stopped
-    
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: cloudresq-prometheus
+    profiles: ["monitoring"]          # only starts with: docker compose --profile monitoring up -d
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the container reach the backend on your laptop
+    networks:
+      - cloudresq-net
+    mem_limit: 384m
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: cloudresq-grafana
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"      # demo only: anyone can view without logging in
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: dark
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/cloudresq.json
+    ports:
+      - "3030:3000"
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - cloudresq-net
+    mem_limit: 512m
+    restart: unless-stopped
+
   app-1:
     <<: *demo-app
     container_name: cloudresq-app-1
@@ -98,3 +144,7 @@ volumes:
   mongo-data:
     name: cloudresq-mongo-data
     external: true   # reuse the volume from your earlier standalone Mongo container
+  prometheus-data:
+    name: cloudresq-prometheus-data
+  grafana-data:
+    name: cloudresq-grafana-data
